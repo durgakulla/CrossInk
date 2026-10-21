@@ -4,6 +4,10 @@
 
 - Auto-hide Status Bars (Reader settings): EPUB pages use the space normally reserved for the status bars, and the first short Back or Confirm press shows your configured bars over the page for 5 seconds. Pressing again while they are shown goes back or opens the menu as usual; turning the page hides them. Each bar's configured progress line stays on the page while the bars are hidden; turn on Auto-hide Progress Lines to hide the lines too. Both toggles are also in the in-book menu's Settings tab, under Status Bars, and change the same global settings.
 
+### Changed
+
+- On the Xteink X3 in portrait, the top status bar sits 2px higher so its progress line meets the top bezel without a gap.
+
 ### Fixed
 
 - Fixed a crash and restart when turning the page with a button shortcut (for example a side or power button set to Page Turn) on the end-of-book screen. These shortcuts now behave like the page buttons there: next goes home and previous returns to the last page.

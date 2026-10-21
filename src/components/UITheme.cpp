@@ -317,6 +317,11 @@ int UITheme::getTopStatusBarInset(const GfxRenderer& renderer) {
   return renderer.getOrientation() == GfxRenderer::Orientation::Portrait ? 5 : 0;
 #endif
 
+  // The X3 portrait bezel leaves a visible gap above the top progress line at
+  // the shared 5px top padding. Lifting the top bar 2px seats it at the bezel.
+  if (gpio.deviceIsX3() && renderer.getOrientation() == GfxRenderer::Orientation::Portrait) {
+    return -2;
+  }
   return 0;
 }
 
