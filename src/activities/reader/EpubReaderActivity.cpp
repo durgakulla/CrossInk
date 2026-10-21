@@ -3362,22 +3362,7 @@ void EpubReaderActivity::loop() {
     cancelSilentPrefetchForInput();
   }
 
-  // At end of the book with no suggestion menu, forward button goes home and back
-  // button returns to last page
-  if (currentSpineIndex > 0 && currentSpineIndex >= epub->getSpineItemsCount()) {
-    if (endOfBookOptions && endOfBookOptions->menuActive()) {
-      // Selection movement was handled above; absorb leftover page-turn triggers so
-      // e.g. "previous" at the top of the list doesn't jump back into the book
-      return;
-    }
-    if (nextTriggered) {
-      onGoHome();
-    } else {
-      currentSpineIndex = epub->getSpineItemsCount() - 1;
-      nextPageNumber = 0;
-      pendingPageJump = std::numeric_limits<uint16_t>::max();
-      requestUpdate();
-    }
+  if (handleEndOfBookPageTurn(nextTriggered)) {
     return;
   }
 
@@ -5822,7 +5807,36 @@ void EpubReaderActivity::setAutoPageTurnIntervalSeconds(uint16_t seconds) {
   }
 }
 
+// At end of the book with no suggestion menu, forward goes home and back returns
+// to the last page. There is no section on that screen, so every page-turn source
+// must stop here instead of reaching pageTurn().
+bool EpubReaderActivity::handleEndOfBookPageTurn(const bool isForwardTurn) {
+  if (!epub || currentSpineIndex <= 0 || currentSpineIndex < epub->getSpineItemsCount()) {
+    return false;
+  }
+  if (endOfBookOptions && endOfBookOptions->menuActive()) {
+    // Selection movement is handled by the menu; absorb leftover page-turn triggers
+    // so e.g. "previous" at the top of the list doesn't jump back into the book.
+    return true;
+  }
+  if (isForwardTurn) {
+    onGoHome();
+  } else {
+    currentSpineIndex = epub->getSpineItemsCount() - 1;
+    nextPageNumber = 0;
+    pendingPageJump = std::numeric_limits<uint16_t>::max();
+    requestUpdate();
+  }
+  return true;
+}
+
 void EpubReaderActivity::requestManualPageTurn(const bool isForwardTurn, const char* source) {
+  // Shortcut page turns (side/power/home button) arrive here without passing the
+  // front-button end-of-book check in loop().
+  if (handleEndOfBookPageTurn(isForwardTurn)) {
+    clearPendingManualPageTurns();
+    return;
+  }
   finishManualPageTurnBrakeIfReady();
   const ManualPageTurnRequest request{isForwardTurn, source};
   if (pendingManualPageTurns.dispatchedDirectionOpposes(isForwardTurn)) {
@@ -5924,6 +5938,13 @@ void EpubReaderActivity::pageTurn(bool isForwardTurn, const char* source) {
       }
     }
     lastPageTurnTime = millis();
+    requestUpdate();
+    return;
+  }
+  if (!section) {
+    // Between a chapter change and the render that rebuilds it there is no
+    // section to turn within; let that render run instead.
+    LOG_DBG("ERS", "Page turn ignored: no section loaded (spine %d)", currentSpineIndex);
     requestUpdate();
     return;
   }

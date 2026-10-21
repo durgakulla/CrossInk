@@ -459,6 +459,7 @@ class EpubReaderActivity final : public Activity {
   void finishManualPageTurnBrakeIfReady();
   void cancelSilentNextChapterPrefetchForForwardTurn();
   bool isAtBookStart() const;
+  bool handleEndOfBookPageTurn(bool isForwardTurn);
   void pageTurn(bool isForwardTurn, const char* source = "unknown");
   float getCurrentBookProgressPercent() const;
   void initializeCompletionPromptTrigger();

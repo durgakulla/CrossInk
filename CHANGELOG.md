@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Fixed
+
+- Fixed a crash and restart when turning the page with a button shortcut (for example a side or power button set to Page Turn) on the end-of-book screen. These shortcuts now behave like the page buttons there: next goes home and previous returns to the last page.
+
 ## [v1.6.1] - 2026-10-03
 
 ### Added
