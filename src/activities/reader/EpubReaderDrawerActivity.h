@@ -253,6 +253,8 @@ class EpubReaderDrawerActivity final : public Activity {
   void completeAutoPageTurnSelection();
   void notifyDictionaryFontChanged();
   void toggleSetting(RowId row);
+  void toggleGlobalAutoHide(RowId row);
+  void rebuildRootRows();
   void adjustActiveSlider(int delta);
   void adjustButtonSlider(int direction);
   void setActiveSliderPermille(int16_t permille);

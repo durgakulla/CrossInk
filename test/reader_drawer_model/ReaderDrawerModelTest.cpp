@@ -152,12 +152,33 @@ TEST(ReaderDrawerModel, CatalogOrderAndConditionalRowsMatchTouchDesign) {
   EXPECT_EQ(location.items[6], ReaderDrawerCatalogItem::DisplayQr);
 
   const auto& settings = complete[static_cast<size_t>(ReaderDrawerTab::Settings)];
-  EXPECT_EQ(settings.count, 11);
+  EXPECT_EQ(settings.count, 12);
   EXPECT_EQ(settings.items[0], ReaderDrawerCatalogItem::StatusBar);
-  EXPECT_EQ(settings.items[1], ReaderDrawerCatalogItem::Controls);
-  EXPECT_EQ(settings.items[6], ReaderDrawerCatalogItem::TrackBookStats);
-  EXPECT_EQ(settings.items[7], ReaderDrawerCatalogItem::ResetReadingPace);
-  EXPECT_EQ(settings.items[10], ReaderDrawerCatalogItem::ResetBookReaderSettings);
+  EXPECT_EQ(settings.items[1], ReaderDrawerCatalogItem::AutoHideStatusBars);
+  EXPECT_EQ(settings.items[2], ReaderDrawerCatalogItem::Controls);
+  EXPECT_EQ(settings.items[7], ReaderDrawerCatalogItem::TrackBookStats);
+  EXPECT_EQ(settings.items[8], ReaderDrawerCatalogItem::ResetReadingPace);
+  EXPECT_EQ(settings.items[11], ReaderDrawerCatalogItem::ResetBookReaderSettings);
+}
+
+TEST(ReaderDrawerModel, AutoHideProgressLinesRowFollowsGlobalAutoHide) {
+  ReaderDrawerAvailability available{true, true, true, true, true, true};
+  const ReaderDrawerCatalog hiddenOff = makeReaderDrawerCatalog(available);
+  const auto& offSettings = hiddenOff[static_cast<size_t>(ReaderDrawerTab::Settings)];
+  for (uint8_t i = 0; i < offSettings.count; ++i) {
+    EXPECT_NE(offSettings.items[i], ReaderDrawerCatalogItem::AutoHideProgressLines);
+  }
+
+  // Every optional Settings row on, so this also checks the tab's capacity.
+  available.autoHideStatusBars = true;
+  const ReaderDrawerCatalog hiddenOn = makeReaderDrawerCatalog(available);
+  const auto& onSettings = hiddenOn[static_cast<size_t>(ReaderDrawerTab::Settings)];
+  EXPECT_EQ(onSettings.count, 13);
+  EXPECT_LE(onSettings.count, onSettings.items.size());
+  EXPECT_EQ(onSettings.items[1], ReaderDrawerCatalogItem::AutoHideStatusBars);
+  EXPECT_EQ(onSettings.items[2], ReaderDrawerCatalogItem::AutoHideProgressLines);
+  EXPECT_EQ(onSettings.items[3], ReaderDrawerCatalogItem::Controls);
+  EXPECT_EQ(onSettings.items[12], ReaderDrawerCatalogItem::ResetBookReaderSettings);
 }
 
 TEST(ReaderDrawerModel, StatsRowsFollowGlobalAndBookTrackingChoices) {
@@ -167,7 +188,7 @@ TEST(ReaderDrawerModel, StatsRowsFollowGlobalAndBookTrackingChoices) {
   auto catalog = makeReaderDrawerCatalog(available);
   EXPECT_EQ(catalog[static_cast<size_t>(ReaderDrawerTab::More)].count, 3);
   const auto& settings = catalog[static_cast<size_t>(ReaderDrawerTab::Settings)];
-  EXPECT_EQ(settings.items[6], ReaderDrawerCatalogItem::TrackBookStats);
+  EXPECT_EQ(settings.items[7], ReaderDrawerCatalogItem::TrackBookStats);
   EXPECT_EQ(settings.items[settings.count - 1], ReaderDrawerCatalogItem::ResetBookReaderSettings);
 
   available.globalStatsEnabled = false;

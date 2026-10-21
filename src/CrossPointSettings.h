@@ -585,6 +585,12 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t screenMarginHorizontal = 5;
   // Show EPUB publisher pagebreak labels in the reader margin when present.
   uint8_t publisherPageNumbers = 0;
+  // EPUB reader: lay pages out with no status-bar space and only draw the bars
+  // as a temporary overlay after a short Back/Confirm press.
+  uint8_t autoHideStatusBars = 0;
+  // With auto-hide on, also hide the bars' progress lines. Off keeps each bar's
+  // configured progress line on the page while the rest of the bar is hidden.
+  uint8_t autoHideProgressLines = 0;
   // OPDS browser settings
   char opdsServerUrl[128] = "";
   char opdsUsername[64] = "";

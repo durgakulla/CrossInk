@@ -446,20 +446,9 @@ void EpubReaderDrawerActivity::onEnter() {
   Activity::onEnter();
   if (mappedInput.hasTouchHardware()) mappedInput.setReaderTouchscreenOverride(true);
 
-  const ReaderDrawerCatalog catalog = makeReaderDrawerCatalog(
-      {hasFootnotes, hasDictionary, hasBookmarks, hasClippings, showReadingPaceReset, stablePageCount > 0,
-       !mappedInput.hasTouchHardware(), globalStatsEnabled, bookStatsEnabled});
-  for (size_t tab = 0; tab < rootRows.size(); ++tab) {
-    rootRows[tab].reserve(catalog[tab].count);
-    rootRows[tab].assign(catalog[tab].items.begin(), catalog[tab].items.begin() + catalog[tab].count);
-  }
+  rebuildRootRows();
   if (!mappedInput.hasTouchHardware()) {
     buttonFocusActive = state.pane != ReaderDrawerPane::Root;
-    if (state.pane == ReaderDrawerPane::Root) {
-      const auto count = rootRows[static_cast<size_t>(state.tab)].size();
-      state.selectedIndex =
-          static_cast<int16_t>(std::clamp<int>(state.selectedIndex, 0, std::max(0, static_cast<int>(count) - 1)));
-    }
   }
   paneRows.reserve(7);
   discoverDictionaries();
@@ -480,6 +469,21 @@ void EpubReaderDrawerActivity::onEnter() {
   }
   app.setScreen(&EpubReaderDrawerActivity::drawerScreen, this);
   requestUpdate();
+}
+
+void EpubReaderDrawerActivity::rebuildRootRows() {
+  const ReaderDrawerCatalog catalog = makeReaderDrawerCatalog(
+      {hasFootnotes, hasDictionary, hasBookmarks, hasClippings, showReadingPaceReset, stablePageCount > 0,
+       !mappedInput.hasTouchHardware(), globalStatsEnabled, bookStatsEnabled, SETTINGS.autoHideStatusBars != 0});
+  for (size_t tab = 0; tab < rootRows.size(); ++tab) {
+    rootRows[tab].reserve(catalog[tab].count);
+    rootRows[tab].assign(catalog[tab].items.begin(), catalog[tab].items.begin() + catalog[tab].count);
+  }
+  if (!mappedInput.hasTouchHardware() && state.pane == ReaderDrawerPane::Root) {
+    const auto count = rootRows[static_cast<size_t>(state.tab)].size();
+    state.selectedIndex =
+        static_cast<int16_t>(std::clamp<int>(state.selectedIndex, 0, std::max(0, static_cast<int>(count) - 1)));
+  }
 }
 
 void EpubReaderDrawerActivity::onExit() {
@@ -1757,6 +1761,10 @@ void EpubReaderDrawerActivity::activateRow(const RowId row) {
     case RowId::ResetBookReaderSettings:
       closeAndReturn(false, EpubReaderMenuAction::RESET_BOOK_READER_SETTINGS);
       return;
+    case RowId::AutoHideStatusBars:
+    case RowId::AutoHideProgressLines:
+      toggleGlobalAutoHide(row);
+      return;
     case RowId::TextAa:
     case RowId::Focus:
     case RowId::GuideDots:
@@ -1836,6 +1844,25 @@ void EpubReaderDrawerActivity::activateRow(const RowId row) {
       return;
   }
   closeAndReturn(false, action, !mappedInput.hasTouchHardware());
+}
+
+// Auto-hide is a global setting, not a per-book one, so it is edited the same way
+// as the Status Bars screen: book overrides are suspended around the change, and
+// ending the edit re-lays out the page for the new status-bar space.
+void EpubReaderDrawerActivity::toggleGlobalAutoHide(const RowId row) {
+  commitSettings();
+  if (beginGlobalSettingsEditCallback) beginGlobalSettingsEditCallback(beginGlobalSettingsEditContext);
+  uint8_t& value = row == RowId::AutoHideStatusBars ? SETTINGS.autoHideStatusBars : SETTINGS.autoHideProgressLines;
+  value = value ? 0 : 1;
+  if (saveGlobalSettingsCallback) {
+    saveGlobalSettingsCallback(saveGlobalSettingsContext);
+  } else if (!SETTINGS.saveToFile()) {
+    LOG_ERR("ERDM", "Failed to persist auto-hide status bar setting");
+  }
+  if (endGlobalSettingsEditCallback) endGlobalSettingsEditCallback(endGlobalSettingsEditContext);
+  // The progress-line row is listed only while auto-hide is on.
+  rebuildRootRows();
+  requestUpdate();
 }
 
 void EpubReaderDrawerActivity::toggleSetting(const RowId row) {
@@ -3021,6 +3048,10 @@ const char* EpubReaderDrawerActivity::rowLabel(const RowId row) const {
       return tr(STR_DELETE_BOOKMARKS);
     case RowId::StatusBar:
       return tr(STR_STATUS_BARS);
+    case RowId::AutoHideStatusBars:
+      return tr(STR_AUTO_HIDE_STATUS_BARS);
+    case RowId::AutoHideProgressLines:
+      return tr(STR_AUTO_HIDE_PROGRESS_LINES);
     case RowId::BookDictionary:
       return tr(STR_BOOK_DICTIONARY);
     case RowId::RenderMode:
@@ -3151,6 +3182,8 @@ const char* EpubReaderDrawerActivity::rowValue(const RowId row, char* buffer, co
 
 bool EpubReaderDrawerActivity::rowIsToggle(const RowId row) const {
   switch (row) {
+    case RowId::AutoHideStatusBars:
+    case RowId::AutoHideProgressLines:
     case RowId::TrackBookStats:
     case RowId::TextAa:
     case RowId::Focus:
@@ -3196,6 +3229,10 @@ bool EpubReaderDrawerActivity::rowShowsNavigationCaret(const RowId row) const {
 
 bool EpubReaderDrawerActivity::rowToggleValue(const RowId row) const {
   switch (row) {
+    case RowId::AutoHideStatusBars:
+      return SETTINGS.autoHideStatusBars;
+    case RowId::AutoHideProgressLines:
+      return SETTINGS.autoHideProgressLines;
     case RowId::TrackBookStats:
       return bookStatsEnabled;
     case RowId::TextAa:

@@ -49,6 +49,7 @@ class ReleaseSuppression {
   }
 
   bool isPowerReleaseSuppressed() const { return suppressPowerRelease_; }
+  bool isBackReleaseSuppressed() const { return suppressBackRelease_; }
 
   void expireAfterReleaseFrame(const FrameState& state) {
     if (!state.backHeld && !state.backReleased) suppressBackRelease_ = false;

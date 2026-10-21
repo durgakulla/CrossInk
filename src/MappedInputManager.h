@@ -89,6 +89,8 @@ class MappedInputManager {
   void suppressNextSideRelease(Button button);
   void suppressNextPowerConfirmRelease() { releaseSuppression.suppressPowerConfirm(); }
   bool isPowerReleaseSuppressed() const { return releaseSuppression.isPowerReleaseSuppressed(); }
+  // Peek without consuming, for callers that must not use up a pending suppression.
+  bool isBackReleaseSuppressed() const { return releaseSuppression.isBackReleaseSuppressed(); }
   bool wasPressed(Button button) const;
   bool wasReleased(Button button) const;
   void injectRelease(Button button) const { injectedReleases[static_cast<size_t>(button)] = true; }

@@ -101,6 +101,10 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
                            "screenMarginHorizontal", StrId::STR_CAT_READER));
     add(SettingInfo::Toggle(StrId::STR_PUBLISHER_PAGE_NUMBERS, &CrossPointSettings::publisherPageNumbers,
                             "publisherPageNumbers", StrId::STR_CAT_READER));
+    add(SettingInfo::Toggle(StrId::STR_AUTO_HIDE_STATUS_BARS, &CrossPointSettings::autoHideStatusBars,
+                            "autoHideStatusBars", StrId::STR_CAT_READER));
+    add(SettingInfo::Toggle(StrId::STR_AUTO_HIDE_PROGRESS_LINES, &CrossPointSettings::autoHideProgressLines,
+                            "autoHideProgressLines", StrId::STR_CAT_READER));
     add(SettingInfo::Enum(
         StrId::STR_PARA_ALIGNMENT, &CrossPointSettings::paragraphAlignment,
         {StrId::STR_JUSTIFY, StrId::STR_ALIGN_LEFT, StrId::STR_CENTER, StrId::STR_ALIGN_RIGHT, StrId::STR_BOOK_S_STYLE},

@@ -97,6 +97,32 @@ inline int getReaderFooterReservedHeight(const bool automaticPageTurnActive) {
                   static_cast<int>(statusBarHeight + STATUS_BAR_TEXT_PADDING));
 }
 
+// Auto-hide keeps each bar's progress line on the page unless the user hides them too.
+inline bool autoHideKeepsProgressLines() {
+  return SETTINGS.autoHideStatusBars != 0 && SETTINGS.autoHideProgressLines == 0;
+}
+
+// Top reserve while auto-hidden: only the top bar's progress line, if one is kept.
+inline int getAutoHideTopLineReservedHeight(const GfxRenderer& renderer) {
+  const int lineHeight = UITheme::getReaderProgressBarHeight(ReaderStatusBarPosition::Top);
+  if (!autoHideKeepsProgressLines() || lineHeight <= 0) {
+    return 0;
+  }
+
+  int top, right, bottom, left;
+  renderer.getOrientedViewableTRBL(&top, &right, &bottom, &left);
+  return std::max(0, UITheme::getTopStatusBarY(renderer) + lineHeight - top);
+}
+
+// Bottom reserve while auto-hidden: the vertical margin, widened to fit a kept progress line.
+inline int getAutoHideFooterReservedHeight() {
+  const int lineHeight = UITheme::getReaderProgressBarHeight(ReaderStatusBarPosition::Bottom);
+  if (!autoHideKeepsProgressLines() || lineHeight <= 0) {
+    return SETTINGS.screenMarginVertical;
+  }
+  return std::max(static_cast<int>(SETTINGS.screenMarginVertical), lineHeight + STATUS_BAR_TEXT_PADDING);
+}
+
 inline uint8_t rotatedOrientation(const uint8_t orientation, const bool clockwise) {
   return clockwise ? (orientation + 1) % CrossPointSettings::ORIENTATION_COUNT
                    : (orientation + CrossPointSettings::ORIENTATION_COUNT - 1) % CrossPointSettings::ORIENTATION_COUNT;

@@ -150,6 +150,8 @@ enum class ReaderDrawerCatalogItem : uint8_t {
   SyncProgress,
   NearbyPositionSync,
   SendNearbyBook,
+  AutoHideStatusBars,
+  AutoHideProgressLines,
 };
 
 struct ReaderDrawerAvailability {
@@ -162,10 +164,12 @@ struct ReaderDrawerAvailability {
   bool buttonDevice = false;
   bool globalStatsEnabled = true;
   bool bookStatsEnabled = true;
+  // Global Auto-hide Status Bars; its progress-line sub-toggle is listed only while it is on.
+  bool autoHideStatusBars = false;
 };
 
 struct ReaderDrawerTabCatalog {
-  std::array<ReaderDrawerCatalogItem, 13> items{};
+  std::array<ReaderDrawerCatalogItem, 14> items{};
   uint8_t count = 0;
 
   constexpr void add(const ReaderDrawerCatalogItem item) { items[count++] = item; }
@@ -225,6 +229,8 @@ constexpr ReaderDrawerCatalog makeReaderDrawerCatalog(const ReaderDrawerAvailabi
 
   auto& settings = catalog[static_cast<size_t>(ReaderDrawerTab::Settings)];
   settings.add(ReaderDrawerCatalogItem::StatusBar);
+  settings.add(ReaderDrawerCatalogItem::AutoHideStatusBars);
+  if (available.autoHideStatusBars) settings.add(ReaderDrawerCatalogItem::AutoHideProgressLines);
   settings.add(ReaderDrawerCatalogItem::Controls);
   settings.add(ReaderDrawerCatalogItem::BookDictionary);
   settings.add(ReaderDrawerCatalogItem::RenderMode);

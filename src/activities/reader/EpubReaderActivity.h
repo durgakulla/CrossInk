@@ -212,6 +212,25 @@ class EpubReaderActivity final : public Activity {
   // Session-only display toggle. Layout continues to reserve the same status
   // lane, so switching it never changes the EPUB's page breaks.
   bool statusBarVisible = true;
+  // Auto-hide Status Bars: the first short Back/Confirm press draws the bars over
+  // the page (backing up the pixels underneath); the next press acts normally.
+  // A page render, or the timeout, hides them again.
+  static constexpr unsigned long AUTO_HIDDEN_BARS_REVEAL_MS = 5000;
+  bool autoHiddenBarsRevealed = false;
+  unsigned long autoHiddenBarsRevealTime = 0UL;
+  // A reveal press is claimed immediately and drawn once the render lock is
+  // free; background indexing holds that lock in short bursts after a book opens.
+  static constexpr unsigned long AUTO_HIDDEN_BARS_PENDING_MAX_MS = 2000;
+  bool pendingAutoHiddenBarsReveal = false;
+  unsigned long pendingAutoHiddenBarsRevealSince = 0UL;
+  // Set by render() once a normal book page is on screen, so input can decide
+  // without the render lock whether a press should reveal the bars.
+  std::atomic<bool> autoHiddenBarsPageShown{false};
+  ToastRect autoHiddenBarsTopRect{};
+  ToastRect autoHiddenBarsBottomRect{};
+  std::unique_ptr<uint8_t[]> autoHiddenBarsBackup;
+  size_t autoHiddenBarsTopBackupSize = 0;
+  size_t autoHiddenBarsBottomBackupSize = 0;
   bool longPressMenuHandled = false;
   bool longPressBackHandled = false;
   bool longPowerButtonHandled = false;
@@ -477,6 +496,12 @@ class EpubReaderActivity final : public Activity {
   bool storeRenderModeToastRegion(const char* msg);
   void drawRenderModeToastBuffer(const char* msg);
   bool restoreRenderModeToastRegion();
+  // Auto-hide Status Bars overlay. The two helpers that touch the framebuffer
+  // must be called with the RenderLock held.
+  bool wantsAutoHiddenBarsReveal(bool confirmReleased) const;
+  bool revealAutoHiddenStatusBars();
+  bool hideAutoHiddenStatusBars();
+  void discardAutoHiddenStatusBars();
 
   // Footnote navigation
   void navigateToHref(const std::string& href, bool savePosition = false, bool preferFootnotePreview = false);

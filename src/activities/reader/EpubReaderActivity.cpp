@@ -969,7 +969,12 @@ ReaderViewportLayout computeReaderViewportLayout(GfxRenderer& renderer, const bo
   layout.marginLeft += effectiveReaderLeftMargin();
   layout.marginRight += SETTINGS.screenMarginHorizontal;
 
-  const int topStatusBarReservedHeight = ReaderUtils::getTopStatusBarReservedHeight(renderer);
+  // Auto-hide lays the page out as if no bars exist; they are only ever drawn as
+  // a temporary overlay (see revealAutoHiddenStatusBars). Only kept progress
+  // lines reserve space.
+  const bool autoHideBars = SETTINGS.autoHideStatusBars != 0;
+  const int topStatusBarReservedHeight = autoHideBars ? ReaderUtils::getAutoHideTopLineReservedHeight(renderer)
+                                                      : ReaderUtils::getTopStatusBarReservedHeight(renderer);
   if (topStatusBarReservedHeight > 0) {
     layout.marginTop += std::max(static_cast<int>(SETTINGS.screenMarginVertical),
                                  topStatusBarReservedHeight + ReaderUtils::TOP_STATUS_BAR_TEXT_PADDING);
@@ -987,7 +992,8 @@ ReaderViewportLayout computeReaderViewportLayout(GfxRenderer& renderer, const bo
   (void)showFootnoteHeader;
 #endif
 
-  layout.marginBottom += ReaderUtils::getReaderFooterReservedHeight(automaticPageTurnActive);
+  layout.marginBottom += autoHideBars ? ReaderUtils::getAutoHideFooterReservedHeight()
+                                      : ReaderUtils::getReaderFooterReservedHeight(automaticPageTurnActive);
 
   layout.viewportWidth = renderer.getScreenWidth() - layout.marginLeft - layout.marginRight;
   layout.viewportHeight = renderer.getScreenHeight() - layout.marginTop - layout.marginBottom;
@@ -2862,6 +2868,45 @@ void EpubReaderActivity::loop() {
     sectionBuildCancelRequested.store(false, std::memory_order_relaxed);
     onGoHome();
     return;
+  }
+
+  // Auto-hide Status Bars. This runs before the "Back cancels a busy indexing
+  // build" rule below: after a book opens, background indexing holds the render
+  // lock in short bursts, and a reveal press must not turn into go-home then.
+  if (SETTINGS.autoHideStatusBars) {
+    // Revealed bars time out by putting the backed-up page strips back.
+    if (autoHiddenBarsRevealed && (millis() - autoHiddenBarsRevealTime) >= AUTO_HIDDEN_BARS_REVEAL_MS &&
+        !RenderLock::peek()) {
+      RenderLock lock(*this);
+      if (!hideAutoHiddenStatusBars()) {
+        requestUpdate();  // Could not restore the strips; redraw the page instead.
+      }
+    }
+    // Claim the first short Back/Confirm press right away so it never reaches
+    // the go-home / open-menu handlers. Once revealed, the next press acts normally.
+    if (wantsAutoHiddenBarsReveal(confirmReleased)) {
+      pendingAutoHiddenBarsReveal = true;
+      pendingAutoHiddenBarsRevealSince = millis();
+    }
+    if (pendingAutoHiddenBarsReveal) {
+      // backgroundBuildYieldForInput is already set for this input, so the
+      // background build stops taking the lock and this succeeds within a tick.
+      RenderLock lock(*this, RenderLock::Mode::Try);
+      if (lock.ownsLock()) {
+        pendingAutoHiddenBarsReveal = false;
+        if (!revealAutoHiddenStatusBars()) {
+          LOG_DBG("ERS", "Auto-hidden status bars could not be shown");
+        }
+        // No page render follows this input, so release the background-build
+        // yield that render() would otherwise clear.
+        backgroundBuildYieldForInput.store(false, std::memory_order_relaxed);
+      } else if ((millis() - pendingAutoHiddenBarsRevealSince) >= AUTO_HIDDEN_BARS_PENDING_MAX_MS) {
+        LOG_DBG("ERS", "Auto-hidden status bar reveal timed out waiting for render lock");
+        pendingAutoHiddenBarsReveal = false;
+        backgroundBuildYieldForInput.store(false, std::memory_order_relaxed);
+      }
+      return;
+    }
   }
 
   if (RenderLock::peek() && !touch.prev && !touch.next && mappedInput.wasReleased(MappedInputManager::Button::Back) &&
@@ -5732,6 +5777,138 @@ bool EpubReaderActivity::restoreRenderModeToastRegion() {
   return true;
 }
 
+// A short Back/Confirm release reveals the bars only while they are hidden, the
+// reader is on a normal page, and no other mode owns those buttons. Long presses
+// are left alone so their configured actions keep working immediately.
+bool EpubReaderActivity::wantsAutoHiddenBarsReveal(const bool confirmReleased) const {
+  // Called without the render lock: only loop-owned state and the page-shown
+  // flag are read here. revealAutoHiddenStatusBars() re-checks the page itself.
+  if (!SETTINGS.autoHideStatusBars || autoHiddenBarsRevealed || pendingAutoHiddenBarsReveal || !statusBarVisible ||
+      automaticPageTurnActive || footnoteDepth > 0 || activeFootnotePreview || longPressMenuHandled ||
+      longPressBackHandled || !epub || !autoHiddenBarsPageShown.load(std::memory_order_relaxed)) {
+    return false;
+  }
+  if (UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Top) <= 0 &&
+      UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Bottom) <= 0) {
+    return false;  // Nothing configured to show; let the press act normally.
+  }
+  if (ReaderUtils::autoHideKeepsProgressLines() &&
+      !SETTINGS.readerStatusBar(ReaderStatusBarPosition::Top).hasTextItems(halClock.isAvailable()) &&
+      !SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom).hasTextItems(halClock.isAvailable())) {
+    return false;  // The kept progress lines are all the bars would show.
+  }
+  const unsigned long heldMs = mappedInput.getHeldTime();
+  const bool shortConfirm = confirmReleased && heldMs < longPressMenuMs;
+  // wasReleased(Back) consumes a pending suppression, which would let the same
+  // release reach the go-home handler later in loop(). Never read it then.
+  const bool shortBack = !mappedInput.isBackReleaseSuppressed() &&
+                         mappedInput.wasReleased(MappedInputManager::Button::Back) &&
+                         heldMs < ReaderUtils::GO_HOME_MS;
+  return shortConfirm || shortBack;
+}
+
+// Draw the configured bars over the current page without re-rendering it. The
+// strips under the bars are backed up first (a few KB, freed on hide) so the
+// timeout can put the page text back with a fast partial refresh, the same way
+// the render-mode toast restores its region.
+bool EpubReaderActivity::revealAutoHiddenStatusBars() {
+  constexpr int STRIP_PADDING = 2;
+  if (!epub || !section || section->pageCount == 0 || section->currentPage < 0 ||
+      section->currentPage >= section->pageCount || currentSpineIndex >= epub->getSpineItemsCount()) {
+    return false;
+  }
+  const int screenWidth = renderer.getScreenWidth();
+  const int screenHeight = renderer.getScreenHeight();
+  int marginTop, marginRight, marginBottom, marginLeft;
+  renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
+
+  autoHiddenBarsTopRect = {};
+  autoHiddenBarsBottomRect = {};
+  const int topHeight = UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Top);
+  if (topHeight > 0) {
+    const int bottomEdge = std::min(screenHeight, UITheme::getTopStatusBarY(renderer) + topHeight + STRIP_PADDING);
+    autoHiddenBarsTopRect = {0, 0, screenWidth, std::max(0, bottomEdge)};
+  }
+  const int bottomHeight = UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Bottom);
+  if (bottomHeight > 0) {
+    const int y = std::max(0, screenHeight - marginBottom - bottomHeight - STRIP_PADDING);
+    autoHiddenBarsBottomRect = {0, y, screenWidth, screenHeight - y};
+  }
+
+  const auto regionBytes = [this](const ToastRect& r) -> size_t {
+    return r.h > 0 ? renderer.getRegionByteSize(r.x, r.y, r.w, r.h) : 0;
+  };
+  autoHiddenBarsTopBackupSize = regionBytes(autoHiddenBarsTopRect);
+  autoHiddenBarsBottomBackupSize = regionBytes(autoHiddenBarsBottomRect);
+  const size_t total = autoHiddenBarsTopBackupSize + autoHiddenBarsBottomBackupSize;
+  if (total == 0) {
+    return false;
+  }
+  // Heap rather than a member array: the strip size depends on orientation and
+  // the user's bar layout, and nothing is held while the bars are hidden.
+  autoHiddenBarsBackup = makeUniqueNoThrow<uint8_t[]>(total);
+  if (!autoHiddenBarsBackup) {
+    LOG_ERR("ERS", "OOM: auto-hidden status bar backup (%u bytes)", static_cast<unsigned>(total));
+    discardAutoHiddenStatusBars();
+    return false;
+  }
+  uint8_t* const topBackup = autoHiddenBarsBackup.get();
+  uint8_t* const bottomBackup = topBackup + autoHiddenBarsTopBackupSize;
+  const auto& top = autoHiddenBarsTopRect;
+  const auto& bottom = autoHiddenBarsBottomRect;
+  const bool backedUp =
+      (autoHiddenBarsTopBackupSize == 0 ||
+       renderer.copyRegionToBuffer(top.x, top.y, top.w, top.h, topBackup, autoHiddenBarsTopBackupSize)) &&
+      (autoHiddenBarsBottomBackupSize == 0 ||
+       renderer.copyRegionToBuffer(bottom.x, bottom.y, bottom.w, bottom.h, bottomBackup,
+                                   autoHiddenBarsBottomBackupSize));
+  if (!backedUp) {
+    LOG_ERR("ERS", "Failed to back up page under auto-hidden status bars");
+    discardAutoHiddenStatusBars();
+    return false;
+  }
+
+  // Clear behind the bars so they stay legible over the page text.
+  if (top.h > 0) renderer.fillRect(top.x, top.y, top.w, top.h, false);
+  if (bottom.h > 0) renderer.fillRect(bottom.x, bottom.y, bottom.w, bottom.h, false);
+  autoHiddenBarsRevealed = true;
+  autoHiddenBarsRevealTime = millis();
+  renderStatusBar();
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+  return true;
+}
+
+bool EpubReaderActivity::hideAutoHiddenStatusBars() {
+  if (!autoHiddenBarsRevealed || !autoHiddenBarsBackup) {
+    discardAutoHiddenStatusBars();
+    return false;
+  }
+  uint8_t* const topBackup = autoHiddenBarsBackup.get();
+  uint8_t* const bottomBackup = topBackup + autoHiddenBarsTopBackupSize;
+  const auto& top = autoHiddenBarsTopRect;
+  const auto& bottom = autoHiddenBarsBottomRect;
+  const bool restored =
+      (autoHiddenBarsTopBackupSize == 0 ||
+       renderer.copyBufferToRegion(top.x, top.y, top.w, top.h, topBackup, autoHiddenBarsTopBackupSize)) &&
+      (autoHiddenBarsBottomBackupSize == 0 ||
+       renderer.copyBufferToRegion(bottom.x, bottom.y, bottom.w, bottom.h, bottomBackup,
+                                   autoHiddenBarsBottomBackupSize));
+  discardAutoHiddenStatusBars();
+  if (!restored) {
+    LOG_ERR("ERS", "Failed to restore page under auto-hidden status bars");
+    return false;
+  }
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+  return true;
+}
+
+void EpubReaderActivity::discardAutoHiddenStatusBars() {
+  autoHiddenBarsRevealed = false;
+  autoHiddenBarsBackup.reset();
+  autoHiddenBarsTopBackupSize = 0;
+  autoHiddenBarsBottomBackupSize = 0;
+}
+
 void EpubReaderActivity::applyOrientation(const uint8_t orientation) {
   const auto targetOrientation = ReaderUtils::toRendererOrientation(orientation);
   const bool settingsChanged = SETTINGS.orientation != orientation;
@@ -6014,6 +6191,11 @@ void EpubReaderActivity::render(RenderLock&& lock) {
   if (!epub) {
     return;
   }
+  // Any full page render (page turn, returning from a menu, relayout) redraws
+  // without the overlay, so the bars are hidden again. The page-shown flag is
+  // set again only if this render reaches a normal book page.
+  discardAutoHiddenStatusBars();
+  autoHiddenBarsPageShown.store(false, std::memory_order_relaxed);
   if (quickActionsPopup.processRender(renderer, mappedInput)) {
     return;
   }
@@ -7394,6 +7576,7 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int fo
   }
   composePageBuffer();
   renderStatusBar();
+  autoHiddenBarsPageShown.store(true, std::memory_order_relaxed);
   if (pendingBookmarkFeedback) {
     const char* msg = tr(STR_BOOKMARK_ADDED);
     switch (bookmarkFeedbackType) {
@@ -7747,6 +7930,13 @@ void EpubReaderActivity::renderStatusBar() const {
   if (!statusBarVisible) {
     return;
   }
+  // With auto-hide, full bars are drawn only by revealAutoHiddenStatusBars(),
+  // which clears a backing strip first. Otherwise only the kept progress lines
+  // are drawn, in the space computeReaderViewportLayout() reserved for them.
+  const bool linesOnly = SETTINGS.autoHideStatusBars && !autoHiddenBarsRevealed;
+  if (linesOnly && !ReaderUtils::autoHideKeepsProgressLines()) {
+    return;
+  }
 
   const int estimatedPageCount = section->estimatedTotalPages();
   int currentPage = section->currentPage + 1;
@@ -7763,6 +7953,26 @@ void EpubReaderActivity::renderStatusBar() const {
 
   const auto topBar = SETTINGS.readerStatusBar(ReaderStatusBarPosition::Top);
   const auto bottomBar = SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom);
+  if (linesOnly) {
+    // No text slots, bookmark, or auto-turn label: the theme then draws just the
+    // progress line, at the same spot the full bar puts it.
+    ReaderStatusBarContent lines;
+    lines.bookProgress = bookProgress;
+    lines.chapterProgress = chapterProgress * 100.0f;
+    lines.chapterPage = currentPage;
+    lines.chapterPageCount = pageCount;
+    lines.showProgress = !activeFootnotePreview;
+    lines.darkMode = ReaderUtils::readerDarkModeEnabled();
+    const auto lineOnly = [](ReaderStatusBarConfig config) {
+      config.slots.fill(ReaderStatusBarItem::Empty);
+      return config;
+    };
+    const auto topLine = lineOnly(topBar);
+    const auto bottomLine = lineOnly(bottomBar);
+    GUI.drawReaderStatusBar(renderer, ReaderStatusBarPosition::Top, lines, &topLine);
+    GUI.drawReaderStatusBar(renderer, ReaderStatusBarPosition::Bottom, lines, &bottomLine);
+    return;
+  }
   const auto uses = [&](const ReaderStatusBarItem item) { return topBar.contains(item) || bottomBar.contains(item); };
 
   uint32_t referencePage = 0;
