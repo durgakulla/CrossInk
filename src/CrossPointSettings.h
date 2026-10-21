@@ -359,7 +359,8 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     MINIMAL = 5,
     DASHBOARD = 6,
     COVER_GRID = 7,
-    UI_THEME_COUNT = 8
+    MINIMAL_CAROUSEL = 8,  // Minimal screens with the Lyra Carousel cover strip on Home
+    UI_THEME_COUNT = 9
   };
   enum RECENT_BOOKS_VIEW { RECENT_BOOKS_LIST = 0, RECENT_BOOKS_GRID = 1, RECENT_BOOKS_VIEW_COUNT };
 
@@ -606,7 +607,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // UI Theme
   uint8_t uiTheme = LYRA;
   uint8_t swapLibraryFileBrowser = 0;
-  bool supportsLibraryFileBrowserSwap() const { return uiTheme == MINIMAL || uiTheme == DASHBOARD; }
+  bool supportsLibraryFileBrowserSwap() const {
+    return uiTheme == MINIMAL || uiTheme == MINIMAL_CAROUSEL || uiTheme == DASHBOARD;
+  }
   bool isLibraryFileBrowserSwapped() const { return supportsLibraryFileBrowserSwap() && swapLibraryFileBrowser; }
   // Recently Opened layout in Library; keep the original raw values for older settings.
   uint8_t recentBooksView = RECENT_BOOKS_LIST;

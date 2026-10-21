@@ -245,6 +245,9 @@ device model and build.
 - **UI Theme**: Set which UI theme to use:
   - "Classic" - The original CrossInk theme
   - "Minimal" - A minimal theme with a large book cover
+  - "Minimal Carousel" - Minimal's screens and front buttons (Menu, Browse, Settings, Read), with a carousel of
+    your three most recent books on the **[Home Screen](#31-home-screen)**. The side buttons scroll the carousel;
+    on touch devices, swipe across the covers or tap a side cover. Read opens the book in the middle.
   - "Dashboard" - A dashboard-style home layout
   - "Lyra" - A theme with simple icons featuring your current book
   - "Lyra Extended" - Lyra, but displays 3 books instead of 1 on the **[Home Screen](#31-home-screen)**

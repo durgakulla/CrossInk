@@ -38,6 +38,7 @@
 #include "components/UITheme.h"
 #include "components/themes/dashboard/DashboardTheme.h"
 #include "components/themes/lyra/LyraCarouselTheme.h"
+#include "components/themes/minimal/MinimalCarouselTheme.h"
 #include "components/themes/minimal/MinimalTheme.h"
 #include "fontIds.h"
 
@@ -325,7 +326,25 @@ bool isDashboardTheme() {
   return static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) == CrossPointSettings::UI_THEME::DASHBOARD;
 }
 
-bool usesMinimalHomeInteraction() { return isMinimalTheme() || isDashboardTheme(); }
+bool isMinimalCarouselTheme() {
+  return static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) ==
+         CrossPointSettings::UI_THEME::MINIMAL_CAROUSEL;
+}
+
+// Themes whose Home shows the three-book cover carousel and its artwork cache.
+bool isCarouselHomeTheme() {
+  return static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) == CrossPointSettings::UI_THEME::LYRA_CAROUSEL ||
+         isMinimalCarouselTheme();
+}
+
+// Both carousel themes draw the strip with LyraCarouselTheme; Minimal Carousel
+// holds one rather than deriving from it.
+const LyraCarouselTheme& carouselHomeTheme() {
+  if (isMinimalCarouselTheme()) return static_cast<const MinimalCarouselTheme&>(GUI).carousel();
+  return static_cast<const LyraCarouselTheme&>(GUI);
+}
+
+bool usesMinimalHomeInteraction() { return isMinimalTheme() || isMinimalCarouselTheme() || isDashboardTheme(); }
 
 bool showMinimalHomeButtonHints(const MappedInputManager& mappedInput) { return !mappedInput.hasTouch(); }
 
@@ -411,6 +430,10 @@ void buildCarouselCacheKey(const std::vector<RecentBook>& recentBooks, std::stri
   // Artwork includes Dark Mode's image-polarity correction. Progress, stats,
   // headers and menus are drawn live, so reading cannot invalidate this cache.
   key += SETTINGS.screenInverted ? "dark:1" : "dark:0";
+  key += '\0';
+  // The strip's position differs between the carousel themes, and is baked into the artwork.
+  key += "top:";
+  key += std::to_string(UITheme::getInstance().getMetrics().homeTopPadding);
   key += '\0';
   for (const auto& book : recentBooks) {
     appendCarouselCoverStateToKey(key, book);
@@ -657,8 +680,7 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
     renderer.displayBuffer();
   };
 
-  const bool isCarouselTheme =
-      static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) == CrossPointSettings::UI_THEME::LYRA_CAROUSEL;
+  const bool isCarouselTheme = isCarouselHomeTheme();
   const bool isMinimal = isMinimalTheme();
   const bool isDashboard = isDashboardTheme();
   const size_t recentBookCount = recentBooks.size();
@@ -817,8 +839,7 @@ void HomeActivity::onEnter() {
     coverGridUi = makeUniqueNoThrow<CoverGridHomeUi>(renderer);
     if (!coverGridUi) LOG_ERR("HOME", "Cannot allocate cover grid UI; using standard Home");
   }
-  const bool isCarouselTheme =
-      static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) == CrossPointSettings::UI_THEME::LYRA_CAROUSEL;
+  const bool isCarouselTheme = isCarouselHomeTheme();
 
   // Check if any books have bookmarks (directory scan only, no file parsing)
   hasBookmarks = BookmarkStore::hasAnyBookmarks();
@@ -1525,12 +1546,30 @@ void HomeActivity::loop() {
       return;
     }
 
-    switch (mappedInput.wasSwipe()) {
+    const bool minimalCarousel = isMinimalCarouselTheme();
+    const int carouselBookCount = minimalCarousel ? getVisibleRecentBookCount() : 0;
+    MappedInputManager::SwipeDir swipe = MappedInputManager::SwipeDir::None;
+    int swipeStartX = 0;
+    int swipeStartY = 0;
+    int swipeEndX = 0;
+    int swipeEndY = 0;
+    mappedInput.wasSwipeWithPoints(swipe, swipeStartX, swipeStartY, swipeEndX, swipeEndY);
+    // Horizontal swipes across the cover strip scroll the carousel; elsewhere they
+    // keep Minimal's Browse gesture. The strip comes from the theme metrics because
+    // the cached-frame render path does not update coverRect*.
+    const auto& homeMetrics = UITheme::getInstance().getMetrics();
+    const bool swipeOnCarousel = carouselBookCount > 1 && swipeStartY >= homeMetrics.homeTopPadding &&
+                                 swipeStartY < homeMetrics.homeTopPadding + homeMetrics.homeCoverTileHeight;
+    switch (swipe) {
       case MappedInputManager::SwipeDir::Down:
         minimalHomeNavIndex = 2;
         onSettingsOpen();
         return;
       case MappedInputManager::SwipeDir::Right:
+        if (swipeOnCarousel) {
+          stepMinimalCarousel(-1);
+          return;
+        }
         minimalHomeNavIndex = 1;
         onMinimalBrowseOpen();
         return;
@@ -1541,6 +1580,10 @@ void HomeActivity::loop() {
         requestUpdate();
         return;
       case MappedInputManager::SwipeDir::Left:
+        if (swipeOnCarousel) {
+          stepMinimalCarousel(1);
+          return;
+        }
         if (mappedInput.hasTouch() && canSwapHomeBook()) {
           showNextRecentBookOnHome();
           return;
@@ -1560,6 +1603,19 @@ void HomeActivity::loop() {
     const int homeNavCount = minimalHomeNavCount(!recentBooks.empty());
     if (minimalHomeNavIndex >= homeNavCount) {
       minimalHomeNavIndex = homeNavCount - 1;
+    }
+
+    // The front buttons keep Minimal's fixed actions, so the side buttons
+    // scroll the carousel on every device.
+    if (carouselBookCount > 1) {
+      if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+        stepMinimalCarousel(-1);
+        return;
+      }
+      if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+        stepMinimalCarousel(1);
+        return;
+      }
     }
 
     // Touch readers do not show the front-button hints, so retain their
@@ -1608,7 +1664,15 @@ void HomeActivity::loop() {
       return;
     }
     int touchedBookIndex = -1;
+    if (minimalCarousel && mappedInput.wasCoverTapped(touchedBookIndex) && touchedBookIndex >= 0 &&
+        touchedBookIndex < carouselBookCount && touchedBookIndex != getHighlightedBookIndex()) {
+      selectMinimalCarouselBook(touchedBookIndex);
+      return;
+    }
     if (mappedInput.wasCoverTouchedDown(touchedBookIndex) && touchedBookIndex >= 0 && !recentBooks.empty()) {
+      if (minimalCarousel && touchedBookIndex != getHighlightedBookIndex()) {
+        return;  // A side cover selects on release; only the centred book highlights Read.
+      }
       if (minimalHomeNavIndex != 3) {
         minimalHomeNavIndex = 3;
         requestUpdate();
@@ -2080,7 +2144,9 @@ void HomeActivity::render(RenderLock&&) {
     return;
   }
 
-  if (usesMinimalHomeInteraction()) {
+  // Minimal Carousel shares this branch only for its menu panel; its home
+  // screen uses the carousel renderer below with Minimal's button hints.
+  if (usesMinimalHomeInteraction() && (minimalMenuOpen || !isMinimalCarouselTheme())) {
     renderer.clearScreen();
 
     if (minimalMenuOpen) {
@@ -2114,16 +2180,7 @@ void HomeActivity::render(RenderLock&&) {
                             (isDashboardTheme() || hasAnyBookStats(currentBookStats)) ? &currentBookStats : nullptr,
                             currentBookProgressPercent, &globalStats, currentBookChapterTitle.c_str());
 
-    const int homeNavCount = minimalHomeNavCount(!recentBooks.empty());
-    if (minimalHomeNavIndex >= homeNavCount) {
-      minimalHomeNavIndex = homeNavCount - 1;
-    }
-    if (showMinimalHomeButtonHints(mappedInput)) {
-      MinimalTheme::setHomeButtonHintSelection(minimalHomeNavIndex);
-      GUI.drawButtonHints(renderer, tr(STR_MENU),
-                          SETTINGS.isLibraryFileBrowserSwapped() ? tr(STR_LIBRARY) : tr(STR_BROWSE),
-                          tr(STR_SETTINGS_SHORT), recentBooks.empty() ? "" : tr(STR_READ));
-    }
+    drawMinimalHomeButtonHints();
 
     displayHomeBuffer();
 
@@ -2166,22 +2223,26 @@ void HomeActivity::render(RenderLock&&) {
 
       // The snapshot contains artwork only; all changing UI uses current state.
       const Rect coverRect{0, metrics.homeTopPadding, pageWidth, metrics.homeCoverTileHeight};
-      const auto& carouselTheme = static_cast<const LyraCarouselTheme&>(GUI);
+      const LyraCarouselTheme& carouselTheme = carouselHomeTheme();
       GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.homeTopPadding}, nullptr);
       GUI.drawCarouselBorder(renderer, coverRect, recentBooks, centerIdx, inCarouselRow);
       carouselTheme.drawReadingProgress(renderer, coverRect, recentBooks,
                                         hasAnyBookStats(currentBookStats) ? &currentBookStats : nullptr,
                                         currentBookProgressPercent);
-      const auto menuItems = buildHomeMenuItems(hasOpdsServers, hasReadingStats, hasBookmarks, hasClippings);
-      const int menuHighlightIndex = mappedInput.hasTouchHardware()
-                                         ? carouselMenuTouchDownIndex
-                                         : (inCarouselRow ? -1 : selectorIndex - static_cast<int>(recentBooks.size()));
-      GUI.drawButtonMenu(
-          renderer, Rect{}, static_cast<int>(menuItems.size()), menuHighlightIndex,
-          [&menuItems](int index) { return menuItems[index].label; },
-          [&menuItems](int index) { return menuItems[index].icon; });
-      const auto labels = mappedInput.mapLabels(tr(STR_READ), tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
-      GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+      if (isMinimalCarouselTheme()) {
+        drawMinimalHomeButtonHints();
+      } else {
+        const auto menuItems = buildHomeMenuItems(hasOpdsServers, hasReadingStats, hasBookmarks, hasClippings);
+        const int rowMenuIndex = inCarouselRow ? -1 : selectorIndex - static_cast<int>(recentBooks.size());
+        const int menuHighlightIndex = mappedInput.hasTouchHardware() ? carouselMenuTouchDownIndex : rowMenuIndex;
+        GUI.drawButtonMenu(
+            renderer, Rect{}, static_cast<int>(menuItems.size()), menuHighlightIndex,
+            [&menuItems](int index) { return menuItems[index].label; },
+            [&menuItems](int index) { return menuItems[index].icon; });
+        const auto labels =
+            mappedInput.mapLabels(tr(STR_READ), tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
+        GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+      }
 
       displayHomeBuffer();
       if (saveViewedFrame) saveCarouselFrameToDisk(gCarouselCache.keyHash, bookCount, centerIdx, slotIdx);
@@ -2235,21 +2296,25 @@ void HomeActivity::render(RenderLock&&) {
   const int menuEndY = pageHeight - metrics.buttonHintsHeight;
   const int menuHeight = std::max(0, menuEndY - menuStartY);
 
-  const bool isCarouselTheme =
-      static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) == CrossPointSettings::UI_THEME::LYRA_CAROUSEL;
-  const int menuSelectedIndex = isCarouselTheme && mappedInput.hasTouchHardware()
-                                    ? carouselMenuTouchDownIndex
-                                    : selectorIndex - getHomeMenuSelectionOffset(recentBooks);
-  GUI.drawButtonMenu(
-      renderer, Rect{0, menuStartY, pageWidth, menuHeight}, static_cast<int>(menuItems.size()), menuSelectedIndex,
-      [&menuItems](int index) { return menuItems[index].label; },
-      [&menuItems](int index) { return menuItems[index].icon; });
+  if (isMinimalCarouselTheme()) {
+    drawMinimalHomeButtonHints();
+  } else {
+    const bool isCarouselTheme =
+        static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) == CrossPointSettings::UI_THEME::LYRA_CAROUSEL;
+    const int menuSelectedIndex = isCarouselTheme && mappedInput.hasTouchHardware()
+                                      ? carouselMenuTouchDownIndex
+                                      : selectorIndex - getHomeMenuSelectionOffset(recentBooks);
+    GUI.drawButtonMenu(
+        renderer, Rect{0, menuStartY, pageWidth, menuHeight}, static_cast<int>(menuItems.size()), menuSelectedIndex,
+        [&menuItems](int index) { return menuItems[index].label; },
+        [&menuItems](int index) { return menuItems[index].icon; });
 
-  const char* readLabel = recentBooks.empty() ? "" : tr(STR_READ);
-  const auto labels = isCarouselTheme
-                          ? mappedInput.mapLabels(readLabel, tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT))
-                          : mappedInput.mapLabels(readLabel, tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    const char* readLabel = recentBooks.empty() ? "" : tr(STR_READ);
+    const auto labels = isCarouselTheme
+                            ? mappedInput.mapLabels(readLabel, tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT))
+                            : mappedInput.mapLabels(readLabel, tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  }
 
   displayHomeBuffer();
 
@@ -2314,12 +2379,36 @@ void HomeActivity::onMinimalBrowseOpen() {
 
 void HomeActivity::onFileBrowserOpen() { activityManager.goToFileBrowser(); }
 
+void HomeActivity::drawMinimalHomeButtonHints() {
+  const int homeNavCount = minimalHomeNavCount(!recentBooks.empty());
+  if (minimalHomeNavIndex >= homeNavCount) {
+    minimalHomeNavIndex = homeNavCount - 1;
+  }
+  if (!showMinimalHomeButtonHints(mappedInput)) return;
+  MinimalTheme::setHomeButtonHintSelection(minimalHomeNavIndex);
+  GUI.drawButtonHints(renderer, tr(STR_MENU), SETTINGS.isLibraryFileBrowserSwapped() ? tr(STR_LIBRARY) : tr(STR_BROWSE),
+                      tr(STR_SETTINGS_SHORT), recentBooks.empty() ? "" : tr(STR_READ));
+}
+
+void HomeActivity::selectMinimalCarouselBook(const int bookIdx) {
+  if (bookIdx < 0 || bookIdx >= getVisibleRecentBookCount() || bookIdx == selectorIndex) return;
+  selectorIndex = bookIdx;
+  lastCarouselBookIndex = bookIdx;
+  invalidateCoverCache();
+  updateHighlightedBookContext();
+  requestUpdate();
+}
+
+void HomeActivity::stepMinimalCarousel(const int direction) {
+  const int bookCount = getVisibleRecentBookCount();
+  if (bookCount <= 1) return;
+  selectMinimalCarouselBook((getHighlightedBookIndex() + direction + bookCount) % bookCount);
+}
+
 void HomeActivity::onContinueReading() {
   if (recentBooks.empty()) return;
 
-  const bool isCarousel =
-      static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) == CrossPointSettings::UI_THEME::LYRA_CAROUSEL;
-  const int bookIndex = isCarousel ? getHighlightedBookIndex() : 0;
+  const int bookIndex = isCarouselHomeTheme() ? getHighlightedBookIndex() : 0;
   if (bookIndex >= 0 && bookIndex < static_cast<int>(recentBooks.size())) {
     onSelectBook(recentBooks[bookIndex].path);
   }

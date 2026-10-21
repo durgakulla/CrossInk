@@ -31,7 +31,7 @@ The main data directory is `.crosspoint` on the SD card. It stores render caches
 ├── koreader.json           # KOReader sync credentials
 ├── bookmarks/              # Bookmark files, one per book
 ├── clippings/              # EPUB clipping/highlight files, one per book
-├── home_carousel_cache_<index>.bin # Lyra Carousel artwork cache for each book position
+├── home_carousel_cache_<index>.bin # Lyra Carousel / Minimal Carousel artwork cache for each book position
 ├── sleep_frame.bin         # Temporary sleep overlay framebuffer, when used
 ├── epub_12471232/          # Each EPUB is cached to epub_<hash>
 │   ├── progress.bin        # Reading position (chapter, page, etc.)

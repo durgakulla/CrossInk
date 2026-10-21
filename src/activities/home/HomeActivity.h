@@ -100,6 +100,10 @@ class HomeActivity final : public Activity {
   void onFileBrowserOpen();
   void onMinimalBrowseOpen();
   void onContinueReading();
+  // Minimal Carousel: Minimal's front-button hints, and side-button/swipe book selection.
+  void drawMinimalHomeButtonHints();
+  void selectMinimalCarouselBook(int bookIdx);
+  void stepMinimalCarousel(int direction);
   void onLibraryOpen();
   void onSettingsOpen();
   void onFileTransferOpen();
