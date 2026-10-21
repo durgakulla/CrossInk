@@ -232,6 +232,25 @@ BookReadingStats BookReadingStats::load(const std::string& cachePath) {
   return stats;
 }
 
+bool BookReadingStats::estimateTimeLeft(const float progressPercent, uint32_t& seconds) const {
+  if (estimatedTimeLeftSeconds > 0) {
+    seconds = estimatedTimeLeftSeconds;
+    return true;
+  }
+  seconds = 0;
+  // Two minutes of reading is the least that gives a usable projection.
+  if (progressPercent <= 0.0f || progressPercent >= 100.0f || totalReadingSeconds < 120) {
+    return false;
+  }
+  const float progress = progressPercent / 100.0f;
+  const float estimate = (static_cast<float>(totalReadingSeconds) * (1.0f - progress)) / progress;
+  if (estimate <= 0.0f) {
+    return false;
+  }
+  seconds = static_cast<uint32_t>(estimate + 0.5f);
+  return seconds > 0;
+}
+
 void BookReadingStats::recordForwardPageRead(uint32_t seconds) {
   if (seconds == 0) {
     return;

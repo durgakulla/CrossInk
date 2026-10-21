@@ -67,6 +67,7 @@ constexpr int kFooterTopGap = 10;
 constexpr int kFooterLabelToBarGap = 3;
 constexpr int kFooterProgressBarHeight = 5;
 constexpr int kFooterPercentTopGap = 2;
+constexpr int kFooterTimeLabelGap = 8;
 
 constexpr int kCornerRadius = 6;
 constexpr int kThinOutlineW = 1;    // always-visible outline around centre cover
@@ -553,15 +554,34 @@ void LyraCarouselTheme::drawReadingProgress(GfxRenderer& renderer, Rect rect,
   const int footerWidth = std::min(footerMaxWidth, centerCoverRect.width);
   const int footerX = centerCoverRect.x + (centerCoverRect.width - footerWidth) / 2;
 
+  // Above the bar: time read on the left, estimated time left on the right.
+  uint32_t timeLeftSeconds = 0;
+  const bool hasTimeLeft = stats != nullptr && hasProgress && stats->estimateTimeLeft(progressPercent, timeLeftSeconds);
+  const bool hasTimeRow = hasStats || hasTimeLeft;
+  // Each label gets half the row so the two never overlap.
+  const int timeLabelMaxWidth = hasStats && hasTimeLeft ? (footerWidth - kFooterTimeLabelGap) / 2 : footerWidth;
+
   if (hasStats) {
     char buf[48];
     formatCompactReadingTime(stats->totalReadingSeconds, buf, sizeof(buf));
-    const auto timeLabel = renderer.truncatedText(footerLabelFontId, buf, footerWidth, EpdFontFamily::REGULAR);
+    const auto timeLabel = renderer.truncatedText(footerLabelFontId, buf, timeLabelMaxWidth, EpdFontFamily::REGULAR);
     renderer.drawText(footerLabelFontId, footerX, infoY, timeLabel.c_str(), true, EpdFontFamily::REGULAR);
   }
 
+  if (hasTimeLeft) {
+    char duration[32];
+    formatCompactReadingTime(timeLeftSeconds, duration, sizeof(duration));
+    char buf[48];
+    snprintf(buf, sizeof(buf), tr(STR_TIME_LEFT_VALUE), duration);
+    const auto timeLeftLabel =
+        renderer.truncatedText(footerLabelFontId, buf, timeLabelMaxWidth, EpdFontFamily::REGULAR);
+    const int timeLeftW = renderer.getTextWidth(footerLabelFontId, timeLeftLabel.c_str(), EpdFontFamily::REGULAR);
+    renderer.drawText(footerLabelFontId, footerX + footerWidth - timeLeftW, infoY, timeLeftLabel.c_str(), true,
+                      EpdFontFamily::REGULAR);
+  }
+
   if (hasProgress) {
-    const int progressBarY = infoY + (hasStats ? footerLabelLineHeight + kFooterLabelToBarGap : 0);
+    const int progressBarY = infoY + (hasTimeRow ? footerLabelLineHeight + kFooterLabelToBarGap : 0);
     const float clampedProgress = std::clamp(progressPercent, 0.0f, 100.0f);
     const int filledWidth = std::clamp(static_cast<int>((clampedProgress / 100.0f) * footerWidth), 0, footerWidth);
     char progressLabel[16];
@@ -570,10 +590,11 @@ void LyraCarouselTheme::drawReadingProgress(GfxRenderer& renderer, Rect rect,
     if (filledWidth > 0) {
       renderer.fillRect(footerX, progressBarY, filledWidth, kFooterProgressBarHeight, true);
     }
+    // Percent read is centred below the bar, between the two time labels above it.
     const int progressLabelW = renderer.getTextWidth(footerLabelFontId, progressLabel, EpdFontFamily::REGULAR);
     const int progressLabelY = progressBarY + kFooterProgressBarHeight + kFooterPercentTopGap;
-    renderer.drawText(footerLabelFontId, footerX + footerWidth - progressLabelW, progressLabelY, progressLabel, true,
-                      EpdFontFamily::REGULAR);
+    renderer.drawText(footerLabelFontId, footerX + (footerWidth - progressLabelW) / 2, progressLabelY, progressLabel,
+                      true, EpdFontFamily::REGULAR);
   }
 }
 

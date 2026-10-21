@@ -38,6 +38,10 @@ struct BookReadingStats {
   // Updates the running reading pace with one forward page dwell sample.
   void recordForwardPageRead(uint32_t seconds);
 
+  // Time left to finish the book: the reader's last live estimate, or a
+  // projection from time read so far at this progress. False when unavailable.
+  bool estimateTimeLeft(float progressPercent, uint32_t& seconds) const;
+
   // Attributes reading time to local date/time buckets when RTC data exists.
   void recordReadingSpan(const ReadingStatsDateTime& localStart, uint32_t seconds);
 

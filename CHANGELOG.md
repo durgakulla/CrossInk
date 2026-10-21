@@ -7,6 +7,7 @@
 
 ### Changed
 
+- Lyra Carousel and Minimal Carousel: the reading progress under the cover now shows the estimated time left at the top right of the progress line, and the percentage read centred below the line.
 - On the Xteink X3 in portrait, the top status bar sits 2px higher so its progress line meets the top bezel without a gap.
 
 ### Fixed
