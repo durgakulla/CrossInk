@@ -3,7 +3,7 @@
 ### Added
 
 - Minimal Carousel UI theme: Minimal's screens and front-button home navigation (Menu, Browse, Settings, Read) with Lyra Carousel's three-book cover carousel on Home. The side buttons scroll the carousel, and on touch devices you can swipe across the covers or tap a side cover; Read opens the book in the middle.
-- Auto-hide Status Bars (Reader settings): EPUB pages use the space normally reserved for the status bars, and the first short Back or Confirm press shows your configured bars over the page for 5 seconds. Pressing again while they are shown goes back or opens the menu as usual; turning the page hides them. Each bar's configured progress line stays on the page while the bars are hidden; turn on Auto-hide Progress Lines to hide the lines too. Both toggles are also in the in-book menu's Settings tab, under Status Bars, and change the same global settings.
+- Auto-hide Status Bars (Reader settings): EPUB pages use the space normally reserved for the status bars, and the new Show/Hide Status Bars shortcut action (assign it to Short Power, a side button, or Quick Actions under Controls) shows your configured bars over the page for 5 seconds. Pressing it again or turning the page hides them; Back and Confirm keep their normal actions. Each bar's configured progress line stays on the page while the bars are hidden; turn on Auto-hide Progress Lines to hide the lines too. Both toggles are also in the in-book menu's Settings tab, under Status Bars, and change the same global settings.
 
 ### Changed
 

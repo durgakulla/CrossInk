@@ -212,14 +212,14 @@ class EpubReaderActivity final : public Activity {
   // Session-only display toggle. Layout continues to reserve the same status
   // lane, so switching it never changes the EPUB's page breaks.
   bool statusBarVisible = true;
-  // Auto-hide Status Bars: the first short Back/Confirm press draws the bars over
-  // the page (backing up the pixels underneath); the next press acts normally.
-  // A page render, or the timeout, hides them again.
+  // Auto-hide Status Bars: the Show/Hide Status Bars shortcut draws the bars over
+  // the page (backing up the pixels underneath). Pressing it again, a page
+  // render, or the timeout hides them.
   static constexpr unsigned long AUTO_HIDDEN_BARS_REVEAL_MS = 5000;
   bool autoHiddenBarsRevealed = false;
   unsigned long autoHiddenBarsRevealTime = 0UL;
-  // A reveal press is claimed immediately and drawn once the render lock is
-  // free; background indexing holds that lock in short bursts after a book opens.
+  // A reveal request is drawn once the render lock is free; background
+  // indexing holds that lock in short bursts after a book opens.
   static constexpr unsigned long AUTO_HIDDEN_BARS_PENDING_MAX_MS = 2000;
   bool pendingAutoHiddenBarsReveal = false;
   unsigned long pendingAutoHiddenBarsRevealSince = 0UL;
@@ -498,7 +498,8 @@ class EpubReaderActivity final : public Activity {
   bool restoreRenderModeToastRegion();
   // Auto-hide Status Bars overlay. The two helpers that touch the framebuffer
   // must be called with the RenderLock held.
-  bool wantsAutoHiddenBarsReveal(bool confirmReleased) const;
+  bool canRevealAutoHiddenBars() const;
+  void toggleStatusBarsShortcut();
   bool revealAutoHiddenStatusBars();
   bool hideAutoHiddenStatusBars();
   void discardAutoHiddenStatusBars();

@@ -401,6 +401,7 @@ which status-bar items are shown.
   - "Sleep" - Put the awake device to sleep without enabling short-press wake
   - "Wake" - When selected as **Short-press Action**, allow a short press to wake the device; does nothing while the device is awake
   - "Next Page" - Turn to the next page while reading
+  - "Show/Hide Status Bars" - In EPUBs with **Auto-hide Status Bars** on, show the bars over the page for 5 seconds; press again to hide them sooner. With auto-hide off, hide or show the status bars until you leave the book
   - "Toggle Bookmark", "Reading Stats", "Mark Finished", "Refresh", "Change Font", "Guide Dots", "Focus Reading", "Auto Page Turn", "Sync Progress", "File Transfer", "Calibre Wireless", "Join a Network", "Create Hotspot", "Screenshot", "Dark Mode", "Browse Files", "Library", or "Save Clipping" - Run the matching action
   - "Footnotes" - Select a footnote reference on the current page, with a list
     fallback when needed; see [Footnote Navigation](#footnote-navigation).

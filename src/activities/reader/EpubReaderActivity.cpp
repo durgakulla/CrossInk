@@ -2870,9 +2870,8 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-  // Auto-hide Status Bars. This runs before the "Back cancels a busy indexing
-  // build" rule below: after a book opens, background indexing holds the render
-  // lock in short bursts, and a reveal press must not turn into go-home then.
+  // Auto-hide Status Bars. A pending reveal waits here for the render lock,
+  // which background indexing holds in short bursts after a book opens.
   if (SETTINGS.autoHideStatusBars) {
     // Revealed bars time out by putting the backed-up page strips back.
     if (autoHiddenBarsRevealed && (millis() - autoHiddenBarsRevealTime) >= AUTO_HIDDEN_BARS_REVEAL_MS &&
@@ -2882,14 +2881,9 @@ void EpubReaderActivity::loop() {
         requestUpdate();  // Could not restore the strips; redraw the page instead.
       }
     }
-    // Claim the first short Back/Confirm press right away so it never reaches
-    // the go-home / open-menu handlers. Once revealed, the next press acts normally.
-    if (wantsAutoHiddenBarsReveal(confirmReleased)) {
-      pendingAutoHiddenBarsReveal = true;
-      pendingAutoHiddenBarsRevealSince = millis();
-    }
+    // Set by toggleStatusBarsShortcut().
     if (pendingAutoHiddenBarsReveal) {
-      // backgroundBuildYieldForInput is already set for this input, so the
+      // toggleStatusBarsShortcut() set backgroundBuildYieldForInput, so the
       // background build stops taking the lock and this succeeds within a tick.
       RenderLock lock(*this, RenderLock::Mode::Try);
       if (lock.ownsLock()) {
@@ -5314,6 +5308,9 @@ bool EpubReaderActivity::handleShortcutAction(const CrossPointSettings::SHORT_PW
     case CrossPointSettings::SHORT_PWRBTN::QUICK_ACTIONS:
       openQuickActionsPopup();
       return true;
+    case CrossPointSettings::SHORT_PWRBTN::TOGGLE_STATUS_BARS:
+      toggleStatusBarsShortcut();
+      return true;
     case CrossPointSettings::SHORT_PWRBTN::LIBRARY:
       return handleGlobalPowerButtonAction(action);
     case CrossPointSettings::SHORT_PWRBTN::TOGGLE_FRONTLIGHT:
@@ -5517,6 +5514,9 @@ bool EpubReaderActivity::executeShortPowerButtonAction() {
     case CrossPointSettings::SHORT_PWRBTN::QUICK_ACTIONS:
       openQuickActionsPopup();
       return true;
+    case CrossPointSettings::SHORT_PWRBTN::TOGGLE_STATUS_BARS:
+      toggleStatusBarsShortcut();
+      return true;
     case CrossPointSettings::SHORT_PWRBTN::LIBRARY:
       return handleGlobalPowerButtonAction(static_cast<CrossPointSettings::SHORT_PWRBTN>(SETTINGS.shortPwrBtn));
     case CrossPointSettings::SHORT_PWRBTN::TOGGLE_FRONTLIGHT:
@@ -5632,6 +5632,9 @@ bool EpubReaderActivity::executeLongPowerButtonAction() {
       return true;
     case CrossPointSettings::SHORT_PWRBTN::QUICK_ACTIONS:
       openQuickActionsPopup();
+      return true;
+    case CrossPointSettings::SHORT_PWRBTN::TOGGLE_STATUS_BARS:
+      toggleStatusBarsShortcut();
       return true;
     case CrossPointSettings::SHORT_PWRBTN::LIBRARY:
       return handleGlobalPowerButtonAction(static_cast<CrossPointSettings::SHORT_PWRBTN>(SETTINGS.longPwrBtn));
@@ -5777,34 +5780,48 @@ bool EpubReaderActivity::restoreRenderModeToastRegion() {
   return true;
 }
 
-// A short Back/Confirm release reveals the bars only while they are hidden, the
-// reader is on a normal page, and no other mode owns those buttons. Long presses
-// are left alone so their configured actions keep working immediately.
-bool EpubReaderActivity::wantsAutoHiddenBarsReveal(const bool confirmReleased) const {
+// The bars can be revealed only while they are hidden, the reader is on a
+// normal page, and no other mode owns the screen.
+bool EpubReaderActivity::canRevealAutoHiddenBars() const {
   // Called without the render lock: only loop-owned state and the page-shown
   // flag are read here. revealAutoHiddenStatusBars() re-checks the page itself.
   if (!SETTINGS.autoHideStatusBars || autoHiddenBarsRevealed || pendingAutoHiddenBarsReveal || !statusBarVisible ||
-      automaticPageTurnActive || footnoteDepth > 0 || activeFootnotePreview || longPressMenuHandled ||
-      longPressBackHandled || !epub || !autoHiddenBarsPageShown.load(std::memory_order_relaxed)) {
+      automaticPageTurnActive || footnoteDepth > 0 || activeFootnotePreview || !epub ||
+      !autoHiddenBarsPageShown.load(std::memory_order_relaxed)) {
     return false;
   }
   if (UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Top) <= 0 &&
       UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Bottom) <= 0) {
-    return false;  // Nothing configured to show; let the press act normally.
+    return false;  // Nothing configured to show.
   }
   if (ReaderUtils::autoHideKeepsProgressLines() &&
       !SETTINGS.readerStatusBar(ReaderStatusBarPosition::Top).hasTextItems(halClock.isAvailable()) &&
       !SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom).hasTextItems(halClock.isAvailable())) {
     return false;  // The kept progress lines are all the bars would show.
   }
-  const unsigned long heldMs = mappedInput.getHeldTime();
-  const bool shortConfirm = confirmReleased && heldMs < longPressMenuMs;
-  // wasReleased(Back) consumes a pending suppression, which would let the same
-  // release reach the go-home handler later in loop(). Never read it then.
-  const bool shortBack = !mappedInput.isBackReleaseSuppressed() &&
-                         mappedInput.wasReleased(MappedInputManager::Button::Back) &&
-                         heldMs < ReaderUtils::GO_HOME_MS;
-  return shortConfirm || shortBack;
+  return true;
+}
+
+// Show/Hide Status Bars shortcut. With Auto-hide Status Bars on it reveals the
+// bars over the page, or hides revealed bars early; otherwise it toggles the
+// session status bar like tap-to-hide does.
+void EpubReaderActivity::toggleStatusBarsShortcut() {
+  if (!SETTINGS.autoHideStatusBars) {
+    statusBarVisible = !statusBarVisible;
+    requestUpdate();
+    return;
+  }
+  if (autoHiddenBarsRevealed) {
+    // Expire the reveal so loop() restores the page strips on its next pass.
+    autoHiddenBarsRevealTime = millis() - AUTO_HIDDEN_BARS_REVEAL_MS;
+    return;
+  }
+  if (!canRevealAutoHiddenBars()) {
+    return;
+  }
+  pendingAutoHiddenBarsReveal = true;
+  pendingAutoHiddenBarsRevealSince = millis();
+  backgroundBuildYieldForInput.store(true, std::memory_order_relaxed);
 }
 
 // Draw the configured bars over the current page without re-rendering it. The
