@@ -49,11 +49,17 @@ void formatCompactReadingDuration(uint32_t seconds, char* buf, size_t len);
 void recordReadingSpanIntoBuckets(std::array<uint32_t, READING_TIME_BUCKET_COUNT>& timeOfDaySeconds,
                                   std::array<uint32_t, READING_DAY_OF_WEEK_COUNT>& dayOfWeekSeconds,
                                   const ReadingStatsDateTime& localStart, uint32_t seconds);
+// True when dayIndex is marked as a reading day in a history anchored at anchorDay.
+bool isReadingHistoryDaySet(uint32_t anchorDay, const std::array<uint8_t, READING_HISTORY_BYTES>& bits,
+                            uint32_t dayIndex);
 void markReadingHistoryDay(uint32_t& anchorDay, std::array<uint8_t, READING_HISTORY_BYTES>& bits, uint32_t dayIndex);
 void recordReadingSpanIntoHistory(uint32_t& anchorDay, std::array<uint8_t, READING_HISTORY_BYTES>& bits,
                                   const ReadingStatsDateTime& localStart, uint32_t seconds);
 void mergeReadingHistory(uint32_t& targetAnchorDay, std::array<uint8_t, READING_HISTORY_BYTES>& targetBits,
                          uint32_t sourceAnchorDay, const std::array<uint8_t, READING_HISTORY_BYTES>& sourceBits);
-uint16_t computeReadingHistoryLongestStreak(uint32_t anchorDay, const std::array<uint8_t, READING_HISTORY_BYTES>& bits);
+// With today set, days dated after it (recorded before a clock or time zone
+// change) are ignored.
+uint16_t computeReadingHistoryLongestStreak(uint32_t anchorDay, const std::array<uint8_t, READING_HISTORY_BYTES>& bits,
+                                            const ReadingStatsDate* today = nullptr);
 uint16_t computeReadingHistoryCurrentStreak(uint32_t anchorDay, const std::array<uint8_t, READING_HISTORY_BYTES>& bits,
                                             const ReadingStatsDate* today);

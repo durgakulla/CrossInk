@@ -33,6 +33,7 @@
 #include "ClippingStore.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "DailyReadingMinutes.h"
 #include "DictionaryWordSelectActivity.h"
 #include "EpubGrayscale.h"
 #include "EpubReaderBookmarkListActivity.h"
@@ -1534,6 +1535,8 @@ void EpubReaderActivity::commitReadingStatsSession() {
   recordCurrentPageReadingTime("session_commit");
   commitReadingSession(stats, globalStats, sessionReadingSeconds,
                        hasSessionStartLocalDateTime ? &sessionStartLocalDateTime : nullptr);
+  DailyReadingMinutes::recordSession(sessionReadingSeconds,
+                                     hasSessionStartLocalDateTime ? &sessionStartLocalDateTime : nullptr);
   sessionReadingSeconds = 0;
 }
 

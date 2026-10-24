@@ -26,6 +26,7 @@
 #include "../home/RecentBookProgress.h"
 #include "../reader/BookStatsTracking.h"
 #include "../reader/BookStatsView.h"
+#include "../reader/DailyReadingMinutes.h"
 #include "../reader/EpubReaderActivity.h"
 #include "../reader/EpubReaderUtils.h"
 #include "../reader/TxtReaderActivity.h"
@@ -35,6 +36,7 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "ImageFolderIndex.h"
+#include "ReadingHeatmapSleepScreen.h"
 #include "RecentBooksStore.h"
 #include "SleepCoverAssets.h"
 #include "activities/reader/ReaderUtils.h"
@@ -532,7 +534,8 @@ void SleepActivity::onEnter() {
   const bool sleepScreenUsesRecentBooks = sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::READING_STATS_SLEEP ||
                                           sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::MINIMAL_SLEEP ||
                                           sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::MINIMAL_STATS_SLEEP ||
-                                          sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::DASHBOARD_SLEEP;
+                                          sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::DASHBOARD_SLEEP ||
+                                          sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::HEATMAP_SLEEP;
   const std::string& recentBookPath = currentBookPath.empty() ? APP_STATE.openEpubPath : currentBookPath;
   if (sleepScreenUsesRecentBooks && !recentBookPath.empty()) {
     RECENT_BOOKS.ensureLoaded();
@@ -582,6 +585,8 @@ void SleepActivity::onEnter() {
       return renderMinimalStatsSleepScreen();
     case (CrossPointSettings::SLEEP_SCREEN_MODE::DASHBOARD_SLEEP):
       return renderDashboardSleepScreen();
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::HEATMAP_SLEEP):
+      return renderHeatmapSleepScreen();
     default:
       return renderDefaultSleepScreen();
   }
@@ -949,6 +954,38 @@ void SleepActivity::renderDashboardSleepScreen() const {
   DashboardTheme theme;
   theme.drawSleepScreen(renderer, book, &bookStats, &globalStats, progressPercent, chapterTitle.c_str(),
                         sleepCoverFilterInvertsGeneratedScreen());
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH, TURN_OFF_SCREEN_AFTER_SLEEP_REFRESH);
+}
+
+void SleepActivity::renderHeatmapSleepScreen() const {
+  // The heatmap is laid out by date, so it needs the RTC's local day.
+  ReadingStatsDateTime now;
+  if (!halClock.isAvailable() || !getCurrentLocalReadingStatsDateTime(now)) {
+    return renderMinimalSleepScreen();
+  }
+
+  // The heatmap shares the Minimal sleep screen's cover thumbnail.
+  const std::string& path = currentBookPath.empty() ? APP_STATE.openEpubPath : currentBookPath;
+  std::string coverBmpPath;
+  if (!path.empty()) {
+    coverBmpPath = SleepCoverAssets::minimalCoverBmpPathFor(path);
+    if (coverBmpPath.empty() && SleepCoverAssets::prepareMinimalCoverForPath(path, &renderer)) {
+      coverBmpPath = SleepCoverAssets::minimalCoverBmpPathFor(path);
+    }
+  }
+
+  // The per-day log is ~760 bytes, too large for this task's stack. Without it
+  // the heatmap still shows read days from the global history.
+  auto dailyMinutes = makeUniqueNoThrow<DailyReadingMinutes>();
+  if (dailyMinutes) {
+    DailyReadingMinutes::load(*dailyMinutes);
+  } else {
+    LOG_ERR("SLP", "OOM loading daily reading log; heatmap shows read days only");
+  }
+
+  const GlobalReadingStats globalStats = GlobalReadingStats::loadAggregated();
+  drawReadingHeatmapSleepScreen(renderer, globalStats, dailyMinutes.get(), now.date, coverBmpPath.c_str(),
+                                sleepCoverFilterInvertsGeneratedScreen());
   renderer.displayBuffer(HalDisplay::HALF_REFRESH, TURN_OFF_SCREEN_AFTER_SLEEP_REFRESH);
 }
 

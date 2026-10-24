@@ -219,6 +219,7 @@ device model and build.
   - "Minimal" - A minimal sleep screen
   - "Minimal Stats" - A minimal stats sleep screen on supported devices; falls back to **Minimal** while tracking is off for the device or recent book
   - "Dashboard" - A dashboard-style sleep screen based on the Dashboard theme
+  - "Reading Heatmap" - A 5-month reading calendar with your streaks and reading time, on supported devices; see [Sleep Screen](#37-sleep-screen)
   - "Quick Resume" - Keeps the current content visible while sleeping
 
 - **Sleep Screen Cover Mode**: How to display the book cover when "Cover" sleep screen is selected:
@@ -657,7 +658,19 @@ The **Sleep Screen** setting controls what is displayed when the device goes to 
 | **Page Overlay**   | Keeps the current reader page visible and draws a sleep wallpaper over it. If no wallpaper is available, the page remains visible while reading.       |
 | **Minimal**        | A compact sleep screen based on the Minimal home layout.                                                                                               |
 | **Minimal Stats**  | A compact sleep screen with recent reading stats, on supported devices; falls back to **Minimal** while tracking is off for the device or recent book. |
+| **Reading Heatmap** | Your current book's cover above a calendar of the last 5 months (one block per month, one column per week), with your current and longest reading streaks and time read in total, this month, and today. Requires reading stats and a device clock (X3). |
 | **None**           | A blank screen.                                                                                                                                        |
+
+#### Reading Heatmap
+
+Each square is one day, and darker squares mean more reading:
+
+- **Faint dotted outline:** no reading.
+- **Light dots:** under 15 minutes, or a day read before minutes were tracked.
+- **Dark dots:** 15–44 minutes.
+- **Solid black:** 45 minutes or more.
+
+Today's square has a thick outline. Minutes per day are recorded on the device from this version on, so **Today** and **This Month** only count reading since then. Earlier reading days still appear, using the lightest shade. **Reset All-Time Stats** also clears the heatmap's minutes.
 
 #### Cover settings
 

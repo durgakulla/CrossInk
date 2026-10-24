@@ -420,6 +420,7 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
           std::find_if(v.begin(), v.end(), [](const SettingInfo& s) { return s.nameId == StrId::STR_SLEEP_SCREEN; });
       if (sleepScreenIt != v.end()) {
         removeEnumRawValue(*sleepScreenIt, static_cast<uint8_t>(CrossPointSettings::MINIMAL_STATS_SLEEP));
+        removeEnumRawValue(*sleepScreenIt, static_cast<uint8_t>(CrossPointSettings::HEATMAP_SLEEP));
       }
     }
     return v;

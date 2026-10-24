@@ -39,6 +39,7 @@
 #include "SilentRestart.h"
 #include "StatusBarSettingsActivity.h"
 #include "activities/network/WifiSelectionActivity.h"
+#include "activities/reader/DailyReadingMinutes.h"
 #include "activities/reader/GlobalReadingStats.h"
 #include "activities/util/ConfirmationActivity.h"
 #include "activities/util/IntervalSelectionActivity.h"
@@ -1173,8 +1174,12 @@ void SettingsActivity::toggleCurrentSetting() {
             std::make_unique<ConfirmationActivity>(renderer, mappedInput, tr(STR_RESET_ALL_TIME_STATS),
                                                    tr(STR_RESET_ALL_TIME_STATS_CONFIRM)),
             [this](const ActivityResult& result) {
-              if (!result.isCancelled && !GlobalReadingStats::resetLocal()) {
-                LOG_ERR("SET", "Failed to reset all-time reading stats");
+              if (!result.isCancelled) {
+                if (!GlobalReadingStats::resetLocal()) {
+                  LOG_ERR("SET", "Failed to reset all-time reading stats");
+                } else if (!DailyReadingMinutes::reset()) {
+                  LOG_ERR("SET", "Failed to reset daily reading log");
+                }
               }
               requestUpdate();
             });

@@ -390,7 +390,10 @@ void GlobalReadingStats::recordReadingSpan(const ReadingStatsDateTime& localStar
   recordReadingSpanIntoBuckets(timeOfDaySeconds, dayOfWeekSeconds, localStart, seconds);
   recordReadingSpanIntoHistory(readingHistoryAnchorDay, readingHistoryBits, localStart, seconds);
 
-  const uint16_t historyLongest = computeReadingHistoryLongestStreak(readingHistoryAnchorDay, readingHistoryBits);
+  ReadingStatsDateTime spanEnd = localStart;
+  addSecondsToReadingStatsDateTime(spanEnd, seconds);
+  const uint16_t historyLongest =
+      computeReadingHistoryLongestStreak(readingHistoryAnchorDay, readingHistoryBits, &spanEnd.date);
   if (historyLongest > longestReadingStreak) {
     longestReadingStreak = historyLongest;
   }
@@ -400,7 +403,15 @@ uint16_t GlobalReadingStats::currentReadingStreak(const ReadingStatsDate* today)
   return computeReadingHistoryCurrentStreak(readingHistoryAnchorDay, readingHistoryBits, today);
 }
 
-uint16_t GlobalReadingStats::displayLongestReadingStreak() const {
-  return std::max(longestReadingStreak,
-                  computeReadingHistoryLongestStreak(readingHistoryAnchorDay, readingHistoryBits));
+uint16_t GlobalReadingStats::displayLongestReadingStreak(const ReadingStatsDate* today) const {
+  const uint16_t historyLongest =
+      computeReadingHistoryLongestStreak(readingHistoryAnchorDay, readingHistoryBits, today);
+  // The stored value only adds streaks older than the history window. When the
+  // whole history (future-dated days included) accounts for it, it may have
+  // been inflated by a future-dated day, so trust the history instead.
+  const uint16_t wholeHistoryLongest = computeReadingHistoryLongestStreak(readingHistoryAnchorDay, readingHistoryBits);
+  if (longestReadingStreak > wholeHistoryLongest) {
+    return std::max(longestReadingStreak, historyLongest);
+  }
+  return historyLongest;
 }

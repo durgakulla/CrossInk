@@ -351,6 +351,14 @@ void recordReadingSpanIntoBuckets(std::array<uint32_t, READING_TIME_BUCKET_COUNT
   }
 }
 
+bool isReadingHistoryDaySet(const uint32_t anchorDay, const std::array<uint8_t, READING_HISTORY_BYTES>& bits,
+                            const uint32_t dayIndex) {
+  if ((anchorDay == 0 && !isBitSet(bits, 0)) || dayIndex > anchorDay) {
+    return false;
+  }
+  return isBitSet(bits, static_cast<size_t>(anchorDay - dayIndex));
+}
+
 void markReadingHistoryDay(uint32_t& anchorDay, std::array<uint8_t, READING_HISTORY_BYTES>& bits,
                            const uint32_t dayIndex) {
   if (anchorDay == 0 && !isBitSet(bits, 0)) {
@@ -424,14 +432,24 @@ void mergeReadingHistory(uint32_t& targetAnchorDay, std::array<uint8_t, READING_
 }
 
 uint16_t computeReadingHistoryLongestStreak(const uint32_t anchorDay,
-                                            const std::array<uint8_t, READING_HISTORY_BYTES>& bits) {
+                                            const std::array<uint8_t, READING_HISTORY_BYTES>& bits,
+                                            const ReadingStatsDate* today) {
   if (anchorDay == 0 && !isBitSet(bits, 0)) {
     return 0;
   }
 
+  int firstBit = 0;
+  if (today && today->isValid()) {
+    const uint32_t todayDay = readingStatsDayIndex(*today);
+    if (anchorDay > todayDay) {
+      const uint32_t futureDays = anchorDay - todayDay;
+      firstBit = static_cast<int>(futureDays < READING_HISTORY_DAYS ? futureDays : READING_HISTORY_DAYS);
+    }
+  }
+
   uint16_t best = 0;
   uint16_t current = 0;
-  for (int bitIndex = static_cast<int>(READING_HISTORY_DAYS) - 1; bitIndex >= 0; --bitIndex) {
+  for (int bitIndex = static_cast<int>(READING_HISTORY_DAYS) - 1; bitIndex >= firstBit; --bitIndex) {
     if (isBitSet(bits, static_cast<size_t>(bitIndex))) {
       current++;
       if (current > best) {
@@ -453,15 +471,28 @@ uint16_t computeReadingHistoryCurrentStreak(uint32_t anchorDay, const std::array
     return 0;
   }
 
+  size_t startBit = 0;
   if (today && today->isValid()) {
     const uint32_t todayDay = readingStatsDayIndex(*today);
     if (anchorDay + 1u < todayDay) {
       return 0;
     }
+    // Days dated after today (recorded before a clock or time zone change)
+    // don't count; the streak runs back from today, or yesterday if today
+    // has no reading yet.
+    if (anchorDay > todayDay) {
+      startBit = anchorDay - todayDay;
+      if (startBit < READING_HISTORY_DAYS && !isBitSet(bits, startBit)) {
+        startBit++;
+      }
+      if (startBit >= READING_HISTORY_DAYS || !isBitSet(bits, startBit)) {
+        return 0;
+      }
+    }
   }
 
   uint16_t streak = 0;
-  for (size_t bitIndex = 0; bitIndex < READING_HISTORY_DAYS; ++bitIndex) {
+  for (size_t bitIndex = startBit; bitIndex < READING_HISTORY_DAYS; ++bitIndex) {
     if (!isBitSet(bits, bitIndex)) {
       break;
     }

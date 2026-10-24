@@ -26,8 +26,10 @@ bool shouldPrepareFullCover() {
 }
 
 bool shouldPrepareMinimalCover() {
+  // The Reading Heatmap screen draws the same cover above its grid.
   return SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::MINIMAL_SLEEP ||
-         SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::MINIMAL_STATS_SLEEP;
+         SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::MINIMAL_STATS_SLEEP ||
+         SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::HEATMAP_SLEEP;
 }
 
 bool shouldPrepareDashboardCover() {
@@ -200,6 +202,15 @@ std::string cachedDashboardCoverPathFor(const std::string& bookPath) {
   const std::string coverPath =
       UITheme::getCoverThumbPath(reusablePath, kDashboardSleepCoverWidth, kDashboardSleepCoverHeight);
   return fileExists(coverPath) ? reusablePath : std::string{};
+}
+
+std::string minimalCoverBmpPathFor(const std::string& bookPath) {
+  const std::string coverPath =
+      FsHelpers::hasEpubExtension(bookPath)
+          ? Epub(bookPath, "/.crosspoint").getAdaptiveThumbBmpPath(kMinimalSleepCoverWidth, kMinimalSleepCoverHeight)
+          : UITheme::getCoverThumbPath(reusableCoverPathFor(bookPath), kMinimalSleepCoverWidth,
+                                       kMinimalSleepCoverHeight);
+  return fileExists(coverPath) ? coverPath : std::string{};
 }
 
 }  // namespace SleepCoverAssets

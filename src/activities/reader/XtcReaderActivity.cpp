@@ -19,6 +19,7 @@
 #include "BookStatsTracking.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "DailyReadingMinutes.h"
 #include "GlobalActions.h"
 #include "MappedInputManager.h"
 #include "QuickActions.h"
@@ -771,6 +772,8 @@ void XtcReaderActivity::commitReadingStats() {
     recordCurrentPageReadingTime("session_commit");
     commitReadingSession(stats, globalStats, sessionReadingSeconds,
                          hasSessionStartLocalDateTime ? &sessionStartLocalDateTime : nullptr);
+    DailyReadingMinutes::recordSession(sessionReadingSeconds,
+                                       hasSessionStartLocalDateTime ? &sessionStartLocalDateTime : nullptr);
   }
   sessionReadingSeconds = 0;
   if ((statsTrackingActive || paceDirty || pendingStatsCommit) && stats.save(xtc->getCachePath())) {

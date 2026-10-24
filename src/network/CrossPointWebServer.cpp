@@ -83,7 +83,8 @@ bool isWebEnumOptionAvailable(const SettingInfo& setting, size_t optionIndex) {
     if (option == StrId::STR_READING_STATS) return false;
     if (setting.valuePtr == &CrossPointSettings::sleepScreen && optionIndex < setting.enumRawValues.size()) {
       const uint8_t raw = setting.enumRawValues[optionIndex];
-      if (raw == CrossPointSettings::READING_STATS_SLEEP || raw == CrossPointSettings::MINIMAL_STATS_SLEEP)
+      if (raw == CrossPointSettings::READING_STATS_SLEEP || raw == CrossPointSettings::MINIMAL_STATS_SLEEP ||
+          raw == CrossPointSettings::HEATMAP_SLEEP)
         return false;
     }
   }

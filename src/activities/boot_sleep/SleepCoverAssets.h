@@ -19,5 +19,7 @@ std::string reusableCoverPathFor(const std::string& bookPath);
 std::string cachedCoverPathFor(const std::string& bookPath, bool cropped, bool imageLevels = false);
 std::string cachedMinimalCoverPathFor(const std::string& bookPath);
 std::string cachedDashboardCoverPathFor(const std::string& bookPath);
+// The Minimal-sized cover BMP itself, or empty if it has not been generated.
+std::string minimalCoverBmpPathFor(const std::string& bookPath);
 
 }  // namespace SleepCoverAssets
