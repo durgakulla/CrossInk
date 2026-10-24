@@ -134,8 +134,24 @@ bool tryParseNumber(std::string_view s, T& out) {
   const char* begin = s.data();
   const char* end = s.data() + s.size();
   if (begin < end && *begin == '+') ++begin;
-  const auto r = std::from_chars(begin, end, out);
-  return r.ec == std::errc{} && r.ptr == end;
+#if defined(SIMULATOR) && defined(__APPLE__)
+  // Apple's libc++ deletes the floating-point from_chars overloads, so the
+  // macOS simulator parses floats with strtof on a null-terminated copy.
+  if constexpr (std::is_floating_point_v<T>) {
+    char buf[32];
+    const size_t len = static_cast<size_t>(end - begin);
+    if (len == 0 || len >= sizeof(buf)) return false;
+    memcpy(buf, begin, len);
+    buf[len] = '\0';
+    char* parsedEnd = nullptr;
+    out = static_cast<T>(strtof(buf, &parsedEnd));
+    return parsedEnd == buf + len;
+  } else
+#endif
+  {
+    const auto r = std::from_chars(begin, end, out);
+    return r.ec == std::errc{} && r.ptr == end;
+  }
 }
 
 // Collect up to 4 whitespace-separated tokens for a CSS edge-value shorthand
