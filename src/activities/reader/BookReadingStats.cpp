@@ -4,6 +4,7 @@
 #include <I18n.h>
 #include <Logging.h>
 
+#include <algorithm>
 #include <cstring>
 
 #include "util/FileContentEquals.h"
@@ -249,6 +250,32 @@ bool BookReadingStats::estimateTimeLeft(const float progressPercent, uint32_t& s
   }
   seconds = static_cast<uint32_t>(estimate + 0.5f);
   return seconds > 0;
+}
+
+bool BookReadingStats::estimateFinishDate(const ReadingStatsDateTime& now, const uint32_t remainingReadingSeconds,
+                                          ReadingStatsDate& outDate) const {
+  outDate = {};
+  if (!now.isValid()) {
+    return false;
+  }
+
+  uint64_t calendarSeconds = remainingReadingSeconds;
+  if (startDate.isValid() && totalReadingSeconds > 0) {
+    const uint16_t readingDays = std::max<uint16_t>(1, readingSpanDaysElapsed(startDate, now.date));
+    // Convert remaining reading time into calendar time using the book's
+    // average reading seconds per calendar day.
+    const uint64_t paced = (static_cast<uint64_t>(remainingReadingSeconds) * readingDays * 86400ULL +
+                            static_cast<uint64_t>(totalReadingSeconds) / 2ULL) /
+                           static_cast<uint64_t>(totalReadingSeconds);
+    if (paced > 0) {
+      calendarSeconds = paced;
+    }
+  }
+
+  ReadingStatsDateTime finish = now;
+  addSecondsToReadingStatsDateTime(finish, static_cast<uint32_t>(std::min<uint64_t>(calendarSeconds, UINT32_MAX)));
+  outDate = finish.date;
+  return outDate.isValid();
 }
 
 void BookReadingStats::recordForwardPageRead(uint32_t seconds) {

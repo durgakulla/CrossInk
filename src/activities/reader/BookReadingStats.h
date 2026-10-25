@@ -42,6 +42,13 @@ struct BookReadingStats {
   // projection from time read so far at this progress. False when unavailable.
   bool estimateTimeLeft(float progressPercent, uint32_t& seconds) const;
 
+  // Date the book should be finished, spreading remainingReadingSeconds over
+  // calendar days at this book's average reading time per day since startDate.
+  // Without a start date it assumes continuous reading from now. False when
+  // now is not a valid date.
+  bool estimateFinishDate(const ReadingStatsDateTime& now, uint32_t remainingReadingSeconds,
+                          ReadingStatsDate& outDate) const;
+
   // Attributes reading time to local date/time buckets when RTC data exists.
   void recordReadingSpan(const ReadingStatsDateTime& localStart, uint32_t seconds);
 

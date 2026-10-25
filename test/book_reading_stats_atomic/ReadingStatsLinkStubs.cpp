@@ -11,3 +11,9 @@ void ReadingStatsDate::clear() {
 void recordReadingSpanIntoBuckets(std::array<uint32_t, READING_TIME_BUCKET_COUNT>&,
                                   std::array<uint32_t, READING_DAY_OF_WEEK_COUNT>&, const ReadingStatsDateTime&,
                                   uint32_t) {}
+
+bool ReadingStatsDateTime::isValid() const { return date.isValid(); }
+
+uint16_t readingSpanDaysElapsed(const ReadingStatsDate&, const ReadingStatsDate&) { return 0; }
+
+void addSecondsToReadingStatsDateTime(ReadingStatsDateTime&, uint32_t) {}

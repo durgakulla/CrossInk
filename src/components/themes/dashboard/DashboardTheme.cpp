@@ -194,31 +194,6 @@ bool estimatedTimeLeft(const BookReadingStats& stats, const float progressPercen
   return fallbackEstimatedTimeLeft(stats, progressPercent, seconds);
 }
 
-bool estimateFinishDateFromDailyPace(const BookReadingStats& stats, const ReadingStatsDateTime& today,
-                                     const uint32_t estimatedReadingSeconds, ReadingStatsDate& outDate) {
-  outDate = {};
-  if (!today.isValid() || !stats.startDate.isValid() || estimatedReadingSeconds == 0 ||
-      stats.totalReadingSeconds == 0) {
-    return false;
-  }
-
-  const uint16_t elapsedDays = readingSpanDaysElapsed(stats.startDate, today.date);
-  const uint16_t readingDays = std::max<uint16_t>(1, elapsedDays);
-  const uint64_t estimatedCalendarSeconds =
-      (static_cast<uint64_t>(estimatedReadingSeconds) * static_cast<uint64_t>(readingDays) * 86400ULL +
-       static_cast<uint64_t>(stats.totalReadingSeconds) / 2ULL) /
-      static_cast<uint64_t>(stats.totalReadingSeconds);
-  if (estimatedCalendarSeconds == 0) {
-    return false;
-  }
-
-  ReadingStatsDateTime estimatedFinish = today;
-  addSecondsToReadingStatsDateTime(estimatedFinish,
-                                   static_cast<uint32_t>(std::min<uint64_t>(estimatedCalendarSeconds, UINT32_MAX)));
-  outDate = estimatedFinish.date;
-  return outDate.isValid();
-}
-
 float pagesPerMinute(const uint32_t totalPagesTurned, const uint32_t totalReadingSeconds) {
   if (totalReadingSeconds <= 60) {
     return 0.0f;
@@ -347,11 +322,7 @@ void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, cons
   if (bookStats.isCompleted) {
     finishDisplayDate = bookStats.finishedDate;
   } else if (hasToday && hasEstimate) {
-    if (!estimateFinishDateFromDailyPace(bookStats, today, estimatedSeconds, finishDisplayDate)) {
-      ReadingStatsDateTime estimatedFinish = today;
-      addSecondsToReadingStatsDateTime(estimatedFinish, estimatedSeconds);
-      finishDisplayDate = estimatedFinish.date;
-    }
+    bookStats.estimateFinishDate(today, estimatedSeconds, finishDisplayDate);
   }
   formatReadingStatsShortDate(finishDisplayDate, finishDate, sizeof(finishDate));
   drawStatsRow(renderer, rightX, rowY, finishDate,
