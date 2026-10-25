@@ -30,8 +30,11 @@ constexpr int kCoverGap = 18;
 constexpr int kSectionGap = 20;
 // Book progress footer under the cover, laid out like the carousel's.
 constexpr int kProgressLabelToBarGap = 3;
-constexpr int kProgressBarHeight = 5;
+constexpr int kProgressBarHeight = 7;
 constexpr int kProgressBarToLabelGap = 2;
+// Stacks the lines of a date beside the bar closer together; small-font lines
+// have spare leading.
+constexpr int kDateLineOverlap = 4;
 constexpr uint32_t kMediumDaySeconds = 15U * 60U;
 constexpr uint32_t kHeavyDaySeconds = 45U * 60U;
 
@@ -158,7 +161,8 @@ void formatPercent(const float percent, char* buf, const size_t len) {
   snprintf(buf, len, "%d%%", static_cast<int>(std::min(percent, 100.0f) + 0.5f));
 }
 
-// Time read and time left above the bar; pace, percent and page below it.
+// Time read, chapter time left and book time left above the bar; pace, percent
+// and page below it.
 // Missing values are left out.
 void drawBookProgress(const GfxRenderer& renderer, const HeatmapBookStats& book, const int x, const int y,
                       const int width) {
@@ -172,10 +176,14 @@ void drawBookProgress(const GfxRenderer& renderer, const HeatmapBookStats& book,
     renderer.drawText(SMALL_FONT_ID, x, y, buf);
   }
   if (book.timeLeftSeconds > 0) {
-    char duration[24];
-    formatCompactReadingDuration(book.timeLeftSeconds, duration, sizeof(duration));
-    snprintf(buf, sizeof(buf), tr(STR_TIME_LEFT_VALUE), duration);
+    formatCompactReadingDuration(book.timeLeftSeconds, buf, sizeof(buf));
     drawRightAligned(buf, y);
+  }
+  if (book.chapterTimeLeftSeconds > 0) {
+    char duration[24];
+    formatCompactReadingDuration(book.chapterTimeLeftSeconds, duration, sizeof(duration));
+    snprintf(buf, sizeof(buf), tr(STR_HEATMAP_CHAPTER_LEFT), duration);
+    renderer.drawText(SMALL_FONT_ID, x + (width - renderer.getTextWidth(SMALL_FONT_ID, buf)) / 2, y, buf);
   }
 
   const int barY = y + lineHeight + kProgressLabelToBarGap;
@@ -183,6 +191,13 @@ void drawBookProgress(const GfxRenderer& renderer, const HeatmapBookStats& book,
   const float progress = std::clamp(book.progressPercent, 0.0f, 100.0f);
   const int filled = static_cast<int>(progress / 100.0f * static_cast<float>(width));
   if (filled > 0) renderer.fillRect(x, barY, filled, kProgressBarHeight, true);
+  // Chapter starts cut the bar's inside: white over the read part, black over
+  // the rest.
+  for (int i = 0; i < book.chapterTickCount; ++i) {
+    const int tickX = x + book.chapterTicks[i] * width / 1000;
+    if (tickX <= x || tickX >= x + width - 1) continue;
+    renderer.drawLine(tickX, barY + 1, tickX, barY + kProgressBarHeight - 2, tickX >= x + filled);
+  }
 
   const int belowY = barY + kProgressBarHeight + kProgressBarToLabelGap;
   // Same pace as the book stats screens, which need over a minute of reading.
@@ -199,6 +214,26 @@ void drawBookProgress(const GfxRenderer& renderer, const HeatmapBookStats& book,
     snprintf(buf, sizeof(buf), "%lu/%lu", static_cast<unsigned long>(book.page),
              static_cast<unsigned long>(book.pageCount));
     drawRightAligned(buf, belowY);
+  }
+}
+
+// A date, its year, and an optional note (e.g. "(est.)") stacked and centered
+// together on (centerX, centerY), the progress bar's middle.
+void drawDateBesideBar(const GfxRenderer& renderer, const int centerX, const int centerY, const ReadingStatsDate& date,
+                       const char* note) {
+  if (!date.isValid()) return;
+  char dayText[16];
+  formatReadingStatsShortDate(date, dayText, sizeof(dayText));
+  char yearText[8];
+  snprintf(yearText, sizeof(yearText), "%u", static_cast<unsigned>(date.year));
+  const int lineStep = renderer.getLineHeight(SMALL_FONT_ID) - kDateLineOverlap;
+  const char* const lines[3] = {dayText, yearText, note};
+  const int lineCount = note ? 3 : 2;
+  int lineY = centerY - ((lineCount - 1) * lineStep + renderer.getLineHeight(SMALL_FONT_ID)) / 2;
+  for (int i = 0; i < lineCount; ++i) {
+    const char* line = lines[i];
+    renderer.drawText(SMALL_FONT_ID, centerX - renderer.getTextWidth(SMALL_FONT_ID, line) / 2, lineY, line);
+    lineY += lineStep;
   }
 }
 
@@ -304,6 +339,14 @@ void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalRead
   if (bookStats) {
     // The progress bar spans the cover's width.
     drawBookProgress(renderer, *bookStats, coverDrawn ? coverX : left, y, coverDrawn ? coverW : usableWidth);
+    // Start date to the left of the bar, finished or estimated finish date to
+    // the right, in the space beside the cover.
+    if (coverDrawn) {
+      const int barCenterY = y + smallLineHeight + kProgressLabelToBarGap + kProgressBarHeight / 2;
+      drawDateBesideBar(renderer, viewLeft + (coverX - viewLeft) / 2, barCenterY, bookStats->startDate, nullptr);
+      drawDateBesideBar(renderer, coverX + coverW + (screenWidth - viewRight - coverX - coverW) / 2, barCenterY,
+                        bookStats->endDate, bookStats->finished ? nullptr : tr(STR_HEATMAP_ESTIMATED));
+    }
     y += progressHeight + kCoverGap;
   }
 
@@ -347,7 +390,7 @@ void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalRead
   }
   y = gridTop + gridHeight + kSectionGap;
 
-  // Stats row: Streak (best), Finished, All Time, current month (e.g. "Oct"), Today.
+  // Stats row: Streak (best), Finished, All Time, This Month, Today.
   constexpr int kStatCount = 5;
   char values[kStatCount][24];
   formatStreak(globalStats.currentReadingStreak(&today), globalStats.displayLongestReadingStreak(&today), values[0],
@@ -360,10 +403,8 @@ void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalRead
   formatDuration(globalStats.totalReadingSeconds, values[2], sizeof(values[2]));
   formatDuration(monthSeconds, values[3], sizeof(values[3]));
   formatDuration(dailyMinutes ? dailyMinutes->secondsForDay(todayIndex) : 0, values[4], sizeof(values[4]));
-  char currentMonth[8];
-  formatReadingStatsMonthToken(today, currentMonth, sizeof(currentMonth));
   const char* const labels[kStatCount] = {tr(STR_HEATMAP_STREAK_BEST), tr(STR_HEATMAP_FINISHED),
-                                          tr(STR_HEATMAP_ALL_TIME), currentMonth, tr(STR_HEATMAP_TODAY)};
+                                          tr(STR_HEATMAP_ALL_TIME), tr(STR_HEATMAP_THIS_MONTH), tr(STR_HEATMAP_TODAY)};
   for (int i = 0; i < kStatCount; ++i) {
     drawStatColumn(renderer, left + usableWidth * (2 * i + 1) / (2 * kStatCount), y, values[i], labels[i]);
   }

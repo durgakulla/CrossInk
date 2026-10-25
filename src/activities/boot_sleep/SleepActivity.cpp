@@ -308,46 +308,67 @@ std::string loadChapterTitleForPath(const std::string& path) {
 }
 
 // The reader's stable page for an EPUB (when the book has stable page numbers)
-// or its page for an XTC. False when unknown.
-bool loadBookPageForPath(const std::string& path, uint32_t& page, uint32_t& pageCount) {
-  page = 0;
-  pageCount = 0;
+// or its page for an XTC, the pages left in the current EPUB chapter, and where
+// each EPUB chapter starts. Unknown values stay 0.
+void loadBookPositionForPath(const std::string& path, HeatmapBookStats& book, uint32_t& chapterPagesLeft) {
+  chapterPagesLeft = 0;
   if (FsHelpers::hasEpubExtension(path)) {
     Epub epub(path, "/.crosspoint");
-    if (!epub.load(false, true, Epub::XLocationLoadMode::Immediate) || !epub.hasStablePageNumbers()) {
-      return false;
+    if (!epub.load(false, true, Epub::XLocationLoadMode::Immediate)) {
+      return;
     }
+    // Top-level chapters only; nested sections would crowd the bar. Ticks too
+    // close to the previous one are dropped.
+    const int tocCount = epub.getTocItemsCount();
+    uint8_t topLevel = UINT8_MAX;
+    for (int i = 0; i < tocCount; ++i) {
+      topLevel = std::min(topLevel, epub.getTocItem(i).level);
+    }
+    int lastPermille = 0;
+    for (int i = 0; i < tocCount && book.chapterTickCount < book.chapterTicks.size(); ++i) {
+      const auto item = epub.getTocItem(i);
+      if (item.level != topLevel || item.spineIndex < 0) continue;
+      const int permille = static_cast<int>(epub.calculateProgress(item.spineIndex, 0.0f) * 1000.0f + 0.5f);
+      if (permille - lastPermille < kHeatmapMinChapterTickPermille || permille >= 1000) continue;
+      book.chapterTicks[book.chapterTickCount++] = static_cast<uint16_t>(permille);
+      lastPermille = permille;
+    }
+
     EpubReaderUtils::Progress progress;
     if (!EpubReaderUtils::loadProgress(epub, progress, "SLP") || !progress.hasPageCount || progress.pageCount <= 0) {
-      return false;
+      return;
     }
-    // Same section progress the reader uses for its stable page.
-    const float sectionProgress = static_cast<float>(progress.pageNumber) / static_cast<float>(progress.pageCount);
-    return epub.resolveReferencePage(progress.spineIndex, sectionProgress, page, pageCount);
+    if (progress.pageNumber + 1 < progress.pageCount) {
+      chapterPagesLeft = static_cast<uint32_t>(progress.pageCount - (progress.pageNumber + 1));
+    }
+    if (epub.hasStablePageNumbers()) {
+      // Same section progress the reader uses for its stable page.
+      const float sectionProgress = static_cast<float>(progress.pageNumber) / static_cast<float>(progress.pageCount);
+      epub.resolveReferencePage(progress.spineIndex, sectionProgress, book.page, book.pageCount);
+    }
+    return;
   }
   if (FsHelpers::hasXtcExtension(path)) {
     Xtc xtc(path, "/.crosspoint");
     if (!xtc.load()) {
-      return false;
+      return;
     }
     FsFile file;
     if (!Storage.openFileForRead("SLP", xtc.getCachePath() + "/progress.bin", file)) {
-      return false;
+      return;
     }
     uint8_t data[4];
     const int bytesRead = file.read(data, sizeof(data));
     file.close();
-    pageCount = xtc.getPageCount();
-    if (bytesRead != 4 || pageCount == 0) {
-      pageCount = 0;
-      return false;
+    book.pageCount = xtc.getPageCount();
+    if (bytesRead != 4 || book.pageCount == 0) {
+      book.pageCount = 0;
+      return;
     }
     const uint32_t current = static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
                              (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
-    page = std::min(current + 1, pageCount);
-    return true;
+    book.page = std::min(current + 1, book.pageCount);
   }
-  return false;
 }
 
 enum class OverlayDrawResult : uint8_t { NotFound, Drawn, Failed };
@@ -1035,7 +1056,19 @@ void SleepActivity::renderHeatmapSleepScreen() const {
     if (RecentBookProgress::hasPercent(bookStats.progressPercent)) {
       stats.estimateTimeLeft(bookStats.progressPercent, bookStats.timeLeftSeconds);
     }
-    loadBookPageForPath(path, bookStats.page, bookStats.pageCount);
+    bookStats.startDate = stats.startDate;
+    bookStats.finished = stats.isCompleted && stats.finishedDate.isValid();
+    if (bookStats.finished) {
+      bookStats.endDate = stats.finishedDate;
+    } else if (bookStats.timeLeftSeconds > 0) {
+      stats.estimateFinishDate(now, bookStats.timeLeftSeconds, bookStats.endDate);
+    }
+    uint32_t chapterPagesLeft = 0;
+    loadBookPositionForPath(path, bookStats, chapterPagesLeft);
+    // The reader's stored pace needs a few page samples before it is trusted.
+    if (stats.avgSecondsPerForwardPage > 0 && stats.paceSampleCount >= 3) {
+      bookStats.chapterTimeLeftSeconds = chapterPagesLeft * stats.avgSecondsPerForwardPage;
+    }
   }
 
   const GlobalReadingStats globalStats = GlobalReadingStats::loadAggregated();
