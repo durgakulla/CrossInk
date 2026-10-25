@@ -307,6 +307,49 @@ std::string loadChapterTitleForPath(const std::string& path) {
   return tocItem.title;
 }
 
+// The reader's stable page for an EPUB (when the book has stable page numbers)
+// or its page for an XTC. False when unknown.
+bool loadBookPageForPath(const std::string& path, uint32_t& page, uint32_t& pageCount) {
+  page = 0;
+  pageCount = 0;
+  if (FsHelpers::hasEpubExtension(path)) {
+    Epub epub(path, "/.crosspoint");
+    if (!epub.load(false, true, Epub::XLocationLoadMode::Immediate) || !epub.hasStablePageNumbers()) {
+      return false;
+    }
+    EpubReaderUtils::Progress progress;
+    if (!EpubReaderUtils::loadProgress(epub, progress, "SLP") || !progress.hasPageCount || progress.pageCount <= 0) {
+      return false;
+    }
+    // Same section progress the reader uses for its stable page.
+    const float sectionProgress = static_cast<float>(progress.pageNumber) / static_cast<float>(progress.pageCount);
+    return epub.resolveReferencePage(progress.spineIndex, sectionProgress, page, pageCount);
+  }
+  if (FsHelpers::hasXtcExtension(path)) {
+    Xtc xtc(path, "/.crosspoint");
+    if (!xtc.load()) {
+      return false;
+    }
+    FsFile file;
+    if (!Storage.openFileForRead("SLP", xtc.getCachePath() + "/progress.bin", file)) {
+      return false;
+    }
+    uint8_t data[4];
+    const int bytesRead = file.read(data, sizeof(data));
+    file.close();
+    pageCount = xtc.getPageCount();
+    if (bytesRead != 4 || pageCount == 0) {
+      pageCount = 0;
+      return false;
+    }
+    const uint32_t current = static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
+                             (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
+    page = std::min(current + 1, pageCount);
+    return true;
+  }
+  return false;
+}
+
 enum class OverlayDrawResult : uint8_t { NotFound, Drawn, Failed };
 
 enum class SleepImageMode : uint8_t { Custom, Overlay };
@@ -964,13 +1007,13 @@ void SleepActivity::renderHeatmapSleepScreen() const {
     return renderMinimalSleepScreen();
   }
 
-  // The heatmap shares the Minimal sleep screen's cover thumbnail.
+  // The heatmap uses its own cover size, sized to leave room for the progress bar.
   const std::string& path = currentBookPath.empty() ? APP_STATE.openEpubPath : currentBookPath;
   std::string coverBmpPath;
   if (!path.empty()) {
-    coverBmpPath = SleepCoverAssets::minimalCoverBmpPathFor(path);
-    if (coverBmpPath.empty() && SleepCoverAssets::prepareMinimalCoverForPath(path, &renderer)) {
-      coverBmpPath = SleepCoverAssets::minimalCoverBmpPathFor(path);
+    coverBmpPath = SleepCoverAssets::heatmapCoverBmpPathFor(path);
+    if (coverBmpPath.empty() && SleepCoverAssets::prepareHeatmapCoverForPath(path, &renderer)) {
+      coverBmpPath = SleepCoverAssets::heatmapCoverBmpPathFor(path);
     }
   }
 
@@ -983,9 +1026,21 @@ void SleepActivity::renderHeatmapSleepScreen() const {
     LOG_ERR("SLP", "OOM loading daily reading log; heatmap shows read days only");
   }
 
+  HeatmapBookStats bookStats;
+  if (!path.empty()) {
+    bookStats.progressPercent = RecentBookProgress::loadPercent(recentBookForPath(path));
+    const BookReadingStats stats = loadBookStatsForPath(path);
+    bookStats.readingSeconds = stats.totalReadingSeconds;
+    bookStats.pagesTurned = stats.totalPagesTurned;
+    if (RecentBookProgress::hasPercent(bookStats.progressPercent)) {
+      stats.estimateTimeLeft(bookStats.progressPercent, bookStats.timeLeftSeconds);
+    }
+    loadBookPageForPath(path, bookStats.page, bookStats.pageCount);
+  }
+
   const GlobalReadingStats globalStats = GlobalReadingStats::loadAggregated();
   drawReadingHeatmapSleepScreen(renderer, globalStats, dailyMinutes.get(), now.date, coverBmpPath.c_str(),
-                                sleepCoverFilterInvertsGeneratedScreen());
+                                path.empty() ? nullptr : &bookStats, sleepCoverFilterInvertsGeneratedScreen());
   renderer.displayBuffer(HalDisplay::HALF_REFRESH, TURN_OFF_SCREEN_AFTER_SLEEP_REFRESH);
 }
 

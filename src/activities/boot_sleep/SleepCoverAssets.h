@@ -14,12 +14,13 @@ bool prepareFullCoverForPath(const std::string& bookPath, bool cropped, const Gf
                              bool imageLevels = false);
 bool prepareMinimalCoverForPath(const std::string& bookPath, const GfxRenderer* renderer = nullptr);
 bool prepareDashboardCoverForPath(const std::string& bookPath, const GfxRenderer* renderer = nullptr);
+bool prepareHeatmapCoverForPath(const std::string& bookPath, const GfxRenderer* renderer = nullptr);
 
 std::string reusableCoverPathFor(const std::string& bookPath);
 std::string cachedCoverPathFor(const std::string& bookPath, bool cropped, bool imageLevels = false);
 std::string cachedMinimalCoverPathFor(const std::string& bookPath);
 std::string cachedDashboardCoverPathFor(const std::string& bookPath);
-// The Minimal-sized cover BMP itself, or empty if it has not been generated.
-std::string minimalCoverBmpPathFor(const std::string& bookPath);
+// The Reading Heatmap-sized cover BMP itself, or empty if it has not been generated.
+std::string heatmapCoverBmpPathFor(const std::string& bookPath);
 
 }  // namespace SleepCoverAssets

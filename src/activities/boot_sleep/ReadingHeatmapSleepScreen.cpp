@@ -28,6 +28,10 @@ constexpr int kTopInset = 14;
 constexpr int kBottomInset = 16;
 constexpr int kCoverGap = 18;
 constexpr int kSectionGap = 20;
+// Book progress footer under the cover, laid out like the carousel's.
+constexpr int kProgressLabelToBarGap = 3;
+constexpr int kProgressBarHeight = 5;
+constexpr int kProgressBarToLabelGap = 2;
 constexpr uint32_t kMediumDaySeconds = 15U * 60U;
 constexpr uint32_t kHeavyDaySeconds = 45U * 60U;
 
@@ -96,13 +100,13 @@ bool readCoverSize(const char* coverBmpPath, int& width, int& height) {
 
 // Draws the cover scaled to fit the box, centered horizontally and moved down
 // by half the unused height so the cover and heatmap sit centered together.
-// Returns the cover's bottom edge, or 0 if nothing was drawn.
-int drawCover(const GfxRenderer& renderer, const char* coverBmpPath, const int boxX, const int boxY, const int boxW,
-              const int boxH) {
-  if (!coverBmpPath || coverBmpPath[0] == '\0' || boxW <= 0 || boxH <= 0) return 0;
+// Returns whether it was drawn; outX/outY/outW/outH receive its bounds.
+bool drawCover(const GfxRenderer& renderer, const char* coverBmpPath, const int boxX, const int boxY, const int boxW,
+               const int boxH, int& outX, int& outY, int& outW, int& outH) {
+  if (!coverBmpPath || coverBmpPath[0] == '\0' || boxW <= 0 || boxH <= 0) return false;
   FsFile file;
-  if (!Storage.openFileForRead("SLP", coverBmpPath, file)) return 0;
-  int bottom = 0;
+  if (!Storage.openFileForRead("SLP", coverBmpPath, file)) return false;
+  bool drawn = false;
   Bitmap bitmap(file);
   if (bitmap.parseHeaders() == BmpReaderError::Ok && bitmap.getWidth() > 0 && bitmap.getHeight() > 0) {
     const float scale = std::min({1.0f, static_cast<float>(boxW) / static_cast<float>(bitmap.getWidth()),
@@ -113,32 +117,89 @@ int drawCover(const GfxRenderer& renderer, const char* coverBmpPath, const int b
     const int y = boxY + (boxH - drawnH) / 2;
     if (renderer.drawBitmap(bitmap, x, y, drawnW, drawnH)) {
       renderer.drawRect(x, y, drawnW, drawnH, true);
-      bottom = y + drawnH;
+      outX = x;
+      outY = y;
+      outW = drawnW;
+      outH = drawnH;
+      drawn = true;
     }
   }
   file.close();
-  return bottom;
+  return drawn;
 }
 
-void formatDayCount(const uint16_t days, char* buf, const size_t len) {
-  if (days == 0) {
+// Current streak with the best streak in brackets, e.g. "11d (14d)".
+void formatStreak(const uint16_t current, const uint16_t best, char* buf, const size_t len) {
+  if (current == 0 && best == 0) {
     snprintf(buf, len, "-");
     return;
   }
-  snprintf(buf, len, "%u %s", static_cast<unsigned>(days), days == 1 ? tr(STR_STATS_DAY) : tr(STR_STATS_DAYS));
+  snprintf(buf, len, "%ud (%ud)", static_cast<unsigned>(current), static_cast<unsigned>(best));
 }
 
-void formatDuration(const uint32_t seconds, char* buf, const size_t len) {
+// From wholeHoursFrom hours up, minutes are dropped to keep the column narrow.
+void formatDuration(const uint32_t seconds, char* buf, const size_t len, const uint32_t wholeHoursFrom = 100) {
   if (seconds == 0) {
     snprintf(buf, len, "-");
     return;
   }
-  // Minutes stop mattering past 100 hours, and dropping them keeps the column narrow.
-  if (seconds >= 100U * 3600U) {
+  if (seconds >= wholeHoursFrom * 3600U) {
     snprintf(buf, len, "%uh", static_cast<unsigned>(seconds / 3600U));
     return;
   }
   formatCompactReadingDuration(seconds, buf, len);
+}
+
+void formatPercent(const float percent, char* buf, const size_t len) {
+  if (percent < 0.0f) {
+    snprintf(buf, len, "-");
+    return;
+  }
+  snprintf(buf, len, "%d%%", static_cast<int>(std::min(percent, 100.0f) + 0.5f));
+}
+
+// Time read and time left above the bar; pace, percent and page below it.
+// Missing values are left out.
+void drawBookProgress(const GfxRenderer& renderer, const HeatmapBookStats& book, const int x, const int y,
+                      const int width) {
+  const int lineHeight = renderer.getLineHeight(SMALL_FONT_ID);
+  const auto drawRightAligned = [&](const char* text, const int textY) {
+    renderer.drawText(SMALL_FONT_ID, x + width - renderer.getTextWidth(SMALL_FONT_ID, text), textY, text);
+  };
+  char buf[32];
+  if (book.readingSeconds > 0) {
+    formatCompactReadingDuration(book.readingSeconds, buf, sizeof(buf));
+    renderer.drawText(SMALL_FONT_ID, x, y, buf);
+  }
+  if (book.timeLeftSeconds > 0) {
+    char duration[24];
+    formatCompactReadingDuration(book.timeLeftSeconds, duration, sizeof(duration));
+    snprintf(buf, sizeof(buf), tr(STR_TIME_LEFT_VALUE), duration);
+    drawRightAligned(buf, y);
+  }
+
+  const int barY = y + lineHeight + kProgressLabelToBarGap;
+  renderer.drawRect(x, barY, width, kProgressBarHeight, true);
+  const float progress = std::clamp(book.progressPercent, 0.0f, 100.0f);
+  const int filled = static_cast<int>(progress / 100.0f * static_cast<float>(width));
+  if (filled > 0) renderer.fillRect(x, barY, filled, kProgressBarHeight, true);
+
+  const int belowY = barY + kProgressBarHeight + kProgressBarToLabelGap;
+  // Same pace as the book stats screens, which need over a minute of reading.
+  if (book.readingSeconds > 60 && book.pagesTurned > 0) {
+    const float pagesPerMinute = static_cast<float>(book.pagesTurned) * 60.0f / static_cast<float>(book.readingSeconds);
+    snprintf(buf, sizeof(buf), tr(STR_HEATMAP_PAGES_PER_MIN_VALUE), pagesPerMinute);
+    renderer.drawText(SMALL_FONT_ID, x, belowY, buf);
+  }
+  if (book.progressPercent >= 0.0f) {
+    formatPercent(book.progressPercent, buf, sizeof(buf));
+    renderer.drawText(SMALL_FONT_ID, x + (width - renderer.getTextWidth(SMALL_FONT_ID, buf)) / 2, belowY, buf);
+  }
+  if (book.page > 0 && book.pageCount > 0) {
+    snprintf(buf, sizeof(buf), "%lu/%lu", static_cast<unsigned long>(book.page),
+             static_cast<unsigned long>(book.pageCount));
+    drawRightAligned(buf, belowY);
+  }
 }
 
 void drawStatColumn(const GfxRenderer& renderer, const int centerX, const int y, const char* value, const char* label) {
@@ -152,7 +213,7 @@ void drawStatColumn(const GfxRenderer& renderer, const int centerX, const int y,
 
 void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalReadingStats& globalStats,
                                    const DailyReadingMinutes* dailyMinutes, const ReadingStatsDate& today,
-                                   const char* coverBmpPath, const bool inverted) {
+                                   const char* coverBmpPath, const HeatmapBookStats* bookStats, const bool inverted) {
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
   int viewTop = 0, viewRight = 0, viewBottom = 0, viewLeft = 0;
@@ -195,7 +256,10 @@ void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalRead
   }
 
   const int monthRowHeight = smallLineHeight + 4;
-  const int heatmapHeightWithoutGrid = monthRowHeight + kSectionGap + statsHeight;
+  const int progressHeight =
+      bookStats ? 2 * smallLineHeight + kProgressLabelToBarGap + kProgressBarHeight + kProgressBarToLabelGap : 0;
+  const int heatmapHeightWithoutGrid =
+      (bookStats ? progressHeight + kCoverGap : 0) + monthRowHeight + kSectionGap + statsHeight;
   const auto gapForPitch = [](const int cellPitch) { return std::max(3, cellPitch / 5); };
 
   const int usableTop = viewTop + kTopInset;
@@ -233,8 +297,15 @@ void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalRead
 
   // The cover takes whatever height the heatmap leaves; the pair is centered.
   const int coverBoxHeight = usableHeight - heatmapHeight - kCoverGap;
-  const int coverBottom = drawCover(renderer, coverBmpPath, left, usableTop, usableWidth, coverBoxHeight);
-  int y = coverBottom > 0 ? coverBottom + kCoverGap : usableTop + std::max(0, (usableHeight - heatmapHeight) / 2);
+  int coverX = 0, coverY = 0, coverW = 0, coverH = 0;
+  const bool coverDrawn =
+      drawCover(renderer, coverBmpPath, left, usableTop, usableWidth, coverBoxHeight, coverX, coverY, coverW, coverH);
+  int y = coverDrawn ? coverY + coverH + kCoverGap : usableTop + std::max(0, (usableHeight - heatmapHeight) / 2);
+  if (bookStats) {
+    // The progress bar spans the cover's width.
+    drawBookProgress(renderer, *bookStats, coverDrawn ? coverX : left, y, coverDrawn ? coverW : usableWidth);
+    y += progressHeight + kCoverGap;
+  }
 
   const uint32_t todayIndex = readingStatsDayIndex(today);
   const int monthY = y;
@@ -276,16 +347,23 @@ void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalRead
   }
   y = gridTop + gridHeight + kSectionGap;
 
-  // Stats row: Streak, Longest, All Time, This Month, Today.
+  // Stats row: Streak (best), Finished, All Time, current month (e.g. "Oct"), Today.
   constexpr int kStatCount = 5;
   char values[kStatCount][24];
-  formatDayCount(globalStats.currentReadingStreak(&today), values[0], sizeof(values[0]));
-  formatDayCount(globalStats.displayLongestReadingStreak(&today), values[1], sizeof(values[1]));
+  formatStreak(globalStats.currentReadingStreak(&today), globalStats.displayLongestReadingStreak(&today), values[0],
+               sizeof(values[0]));
+  if (globalStats.completedBooks == 0) {
+    snprintf(values[1], sizeof(values[1]), "-");
+  } else {
+    snprintf(values[1], sizeof(values[1]), "%lu", static_cast<unsigned long>(globalStats.completedBooks));
+  }
   formatDuration(globalStats.totalReadingSeconds, values[2], sizeof(values[2]));
   formatDuration(monthSeconds, values[3], sizeof(values[3]));
   formatDuration(dailyMinutes ? dailyMinutes->secondsForDay(todayIndex) : 0, values[4], sizeof(values[4]));
-  const char* const labels[kStatCount] = {tr(STR_HEATMAP_STREAK), tr(STR_HEATMAP_LONGEST), tr(STR_HEATMAP_ALL_TIME),
-                                          tr(STR_HEATMAP_THIS_MONTH), tr(STR_HEATMAP_TODAY)};
+  char currentMonth[8];
+  formatReadingStatsMonthToken(today, currentMonth, sizeof(currentMonth));
+  const char* const labels[kStatCount] = {tr(STR_HEATMAP_STREAK_BEST), tr(STR_HEATMAP_FINISHED),
+                                          tr(STR_HEATMAP_ALL_TIME), currentMonth, tr(STR_HEATMAP_TODAY)};
   for (int i = 0; i < kStatCount; ++i) {
     drawStatColumn(renderer, left + usableWidth * (2 * i + 1) / (2 * kStatCount), y, values[i], labels[i]);
   }

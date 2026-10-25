@@ -19,6 +19,10 @@ constexpr int kMinimalSleepCoverHeight = MinimalMetrics::homeCoverImageHeight;
 constexpr int kMinimalSleepCoverWidth = MinimalMetrics::homeCoverImageWidth;
 constexpr int kDashboardSleepCoverHeight = DashboardMetrics::homeCoverImageHeight;
 constexpr int kDashboardSleepCoverWidth = DashboardMetrics::homeCoverImageWidth;
+// The largest 2:3 cover that leaves room for the Reading Heatmap's progress bar,
+// grid and stats on the X3, drawn at native size so dithered covers stay clean.
+constexpr int kHeatmapSleepCoverWidth = 308;
+constexpr int kHeatmapSleepCoverHeight = 462;
 
 bool shouldPrepareFullCover() {
   return SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::COVER ||
@@ -26,10 +30,12 @@ bool shouldPrepareFullCover() {
 }
 
 bool shouldPrepareMinimalCover() {
-  // The Reading Heatmap screen draws the same cover above its grid.
   return SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::MINIMAL_SLEEP ||
-         SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::MINIMAL_STATS_SLEEP ||
-         SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::HEATMAP_SLEEP;
+         SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::MINIMAL_STATS_SLEEP;
+}
+
+bool shouldPrepareHeatmapCover() {
+  return SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::HEATMAP_SLEEP;
 }
 
 bool shouldPrepareDashboardCover() {
@@ -39,6 +45,33 @@ bool shouldPrepareDashboardCover() {
 bool fileExists(const std::string& path) { return !path.empty() && Storage.exists(path.c_str()); }
 
 int readerFontIdForRenderer(const GfxRenderer* renderer) { return renderer ? SETTINGS.getReaderFontId() : 0; }
+
+bool prepareThumbCoverForPath(const std::string& bookPath, const GfxRenderer* renderer, const int width,
+                              const int height) {
+  if (bookPath.empty()) {
+    return false;
+  }
+
+  if (FsHelpers::hasEpubExtension(bookPath)) {
+    Epub epub(bookPath, "/.crosspoint");
+    if (!epub.load(/*buildIfMissing=*/true, /*skipLoadingCss=*/true, Epub::XLocationLoadMode::Skip)) {
+      return false;
+    }
+    return epub.generateAdaptiveThumbBmp(width, height, renderer, readerFontIdForRenderer(renderer));
+  }
+  if (FsHelpers::hasXtcExtension(bookPath)) {
+    Xtc xtc(bookPath, "/.crosspoint");
+    if (!xtc.load()) {
+      return false;
+    }
+    return xtc.generateThumbBmp(static_cast<uint16_t>(width), static_cast<uint16_t>(height));
+  }
+  if (FsHelpers::hasTxtExtension(bookPath) || FsHelpers::hasMarkdownExtension(bookPath)) {
+    Txt txt(bookPath, "/.crosspoint");
+    return txt.generateCoverBmp();
+  }
+  return false;
+}
 
 }  // namespace
 
@@ -59,11 +92,17 @@ bool prepareXtc(const Xtc& xtc) {
                                    static_cast<uint16_t>(kDashboardSleepCoverHeight)) &&
               success;
   }
+  if (shouldPrepareHeatmapCover()) {
+    success = xtc.generateThumbBmp(static_cast<uint16_t>(kHeatmapSleepCoverWidth),
+                                   static_cast<uint16_t>(kHeatmapSleepCoverHeight)) &&
+              success;
+  }
   return success;
 }
 
 bool prepareTxt(const Txt& txt) {
-  if (!shouldPrepareFullCover() && !shouldPrepareMinimalCover() && !shouldPrepareDashboardCover()) {
+  if (!shouldPrepareFullCover() && !shouldPrepareMinimalCover() && !shouldPrepareDashboardCover() &&
+      !shouldPrepareHeatmapCover()) {
     return true;
   }
   return txt.generateCoverBmp();
@@ -97,59 +136,15 @@ bool prepareFullCoverForPath(const std::string& bookPath, const bool cropped, co
 }
 
 bool prepareMinimalCoverForPath(const std::string& bookPath, const GfxRenderer* renderer) {
-  if (bookPath.empty()) {
-    return false;
-  }
-
-  if (FsHelpers::hasEpubExtension(bookPath)) {
-    Epub epub(bookPath, "/.crosspoint");
-    if (!epub.load(/*buildIfMissing=*/true, /*skipLoadingCss=*/true, Epub::XLocationLoadMode::Skip)) {
-      return false;
-    }
-    return epub.generateAdaptiveThumbBmp(kMinimalSleepCoverWidth, kMinimalSleepCoverHeight, renderer,
-                                         readerFontIdForRenderer(renderer));
-  }
-  if (FsHelpers::hasXtcExtension(bookPath)) {
-    Xtc xtc(bookPath, "/.crosspoint");
-    if (!xtc.load()) {
-      return false;
-    }
-    return xtc.generateThumbBmp(static_cast<uint16_t>(kMinimalSleepCoverWidth),
-                                static_cast<uint16_t>(kMinimalSleepCoverHeight));
-  }
-  if (FsHelpers::hasTxtExtension(bookPath) || FsHelpers::hasMarkdownExtension(bookPath)) {
-    Txt txt(bookPath, "/.crosspoint");
-    return txt.generateCoverBmp();
-  }
-  return false;
+  return prepareThumbCoverForPath(bookPath, renderer, kMinimalSleepCoverWidth, kMinimalSleepCoverHeight);
 }
 
 bool prepareDashboardCoverForPath(const std::string& bookPath, const GfxRenderer* renderer) {
-  if (bookPath.empty()) {
-    return false;
-  }
+  return prepareThumbCoverForPath(bookPath, renderer, kDashboardSleepCoverWidth, kDashboardSleepCoverHeight);
+}
 
-  if (FsHelpers::hasEpubExtension(bookPath)) {
-    Epub epub(bookPath, "/.crosspoint");
-    if (!epub.load(/*buildIfMissing=*/true, /*skipLoadingCss=*/true, Epub::XLocationLoadMode::Skip)) {
-      return false;
-    }
-    return epub.generateAdaptiveThumbBmp(kDashboardSleepCoverWidth, kDashboardSleepCoverHeight, renderer,
-                                         readerFontIdForRenderer(renderer));
-  }
-  if (FsHelpers::hasXtcExtension(bookPath)) {
-    Xtc xtc(bookPath, "/.crosspoint");
-    if (!xtc.load()) {
-      return false;
-    }
-    return xtc.generateThumbBmp(static_cast<uint16_t>(kDashboardSleepCoverWidth),
-                                static_cast<uint16_t>(kDashboardSleepCoverHeight));
-  }
-  if (FsHelpers::hasTxtExtension(bookPath) || FsHelpers::hasMarkdownExtension(bookPath)) {
-    Txt txt(bookPath, "/.crosspoint");
-    return txt.generateCoverBmp();
-  }
-  return false;
+bool prepareHeatmapCoverForPath(const std::string& bookPath, const GfxRenderer* renderer) {
+  return prepareThumbCoverForPath(bookPath, renderer, kHeatmapSleepCoverWidth, kHeatmapSleepCoverHeight);
 }
 
 std::string reusableCoverPathFor(const std::string& bookPath) {
@@ -204,12 +199,12 @@ std::string cachedDashboardCoverPathFor(const std::string& bookPath) {
   return fileExists(coverPath) ? reusablePath : std::string{};
 }
 
-std::string minimalCoverBmpPathFor(const std::string& bookPath) {
+std::string heatmapCoverBmpPathFor(const std::string& bookPath) {
   const std::string coverPath =
       FsHelpers::hasEpubExtension(bookPath)
-          ? Epub(bookPath, "/.crosspoint").getAdaptiveThumbBmpPath(kMinimalSleepCoverWidth, kMinimalSleepCoverHeight)
-          : UITheme::getCoverThumbPath(reusableCoverPathFor(bookPath), kMinimalSleepCoverWidth,
-                                       kMinimalSleepCoverHeight);
+          ? Epub(bookPath, "/.crosspoint").getAdaptiveThumbBmpPath(kHeatmapSleepCoverWidth, kHeatmapSleepCoverHeight)
+          : UITheme::getCoverThumbPath(reusableCoverPathFor(bookPath), kHeatmapSleepCoverWidth,
+                                       kHeatmapSleepCoverHeight);
   return fileExists(coverPath) ? coverPath : std::string{};
 }
 
