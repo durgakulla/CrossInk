@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reading Heatmap Installer</title>
+<meta name="description" content="Install CrossInk with the Reading Heatmap sleep screen on a Xteink X3 from your browser.">
+<script type="module" src="https://unpkg.com/esp-web-tools@10.4.0/dist/web/install-button.js?module"></script>
+<style>
+  :root {
+    --bg: #fafaf8; --fg: #1c1c1a; --muted: #5d5d58; --card: #ffffff;
+    --border: #deded8; --accent: #1c1c1a; --accent-fg: #ffffff; --warn-bg: #fff6e0; --warn-border: #e8cf8a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615; --fg: #ececea; --muted: #a3a39d; --card: #1f1f1d;
+      --border: #34342f; --accent: #ececea; --accent-fg: #161615; --warn-bg: #2a2416; --warn-border: #5c4c22;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 8px; }
+  h2 { font-size: 1.15rem; margin: 32px 0 10px; }
+  p.lede { color: var(--muted); margin: 0 0 28px; }
+  .grid { display: grid; grid-template-columns: 1fr 220px; gap: 28px; align-items: start; }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } .shot { max-width: 220px; } }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  ol { padding-left: 1.3em; margin: 0; } li { margin: 6px 0; }
+  .install { margin: 18px 0 6px; }
+  button.go { background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 8px;
+    padding: 12px 22px; font: inherit; font-weight: 600; cursor: pointer; }
+  .note { color: var(--muted); font-size: 0.9rem; }
+  .warn { background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 8px; padding: 10px 14px; }
+  .shot img { width: 100%; border: 1px solid var(--border); border-radius: 6px; background: #fff; display: block; }
+  .shot figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 6px; text-align: center; }
+  ul.caveats { padding-left: 1.2em; margin: 0; } ul.caveats li { margin: 8px 0; }
+  a { color: inherit; }
+  code { font-size: 0.9em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Reading Heatmap for the Xteink X3</h1>
+  <p class="lede">A CrossInk sleep screen with your current book's cover and progress, plus a 5-month reading heatmap and streaks.</p>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <ol>
+          <li>Open this page in <strong>Chrome or Edge</strong> on a computer.</li>
+          <li>Plug your X3 in with a USB-C data cable and turn it on.</li>
+          <li>Click <strong>Install</strong>, pick the device in the list, and wait about a minute until it says done.</li>
+          <li>On the X3: <strong>Settings → Display → Sleep Screen → Reading Heatmap</strong>.</li>
+        </ol>
+        <div class="install">
+          <esp-web-install-button manifest="manifest.json">
+            <button class="go" slot="activate">Install</button>
+            <p slot="unsupported" class="warn">This browser can't talk to USB devices. Use Chrome or Edge on a computer.</p>
+            <p slot="not-allowed" class="warn">Installing needs a secure (https) page.</p>
+          </esp-web-install-button>
+        </div>
+        <p class="note">Your settings and SD card are kept; nothing is erased. Version 1.0.0 &middot;
+          <a href="https://github.com/durgakulla/CrossInk/releases/tag/v1.0.0">release and SD card download</a></p>
+      </div>
+    </div>
+    <figure class="shot" style="margin:0">
+      <img src="preview.png" alt="Reading Heatmap sleep screen: book cover, progress bar with chapter ticks, 5-month heatmap and streak stats" width="528" height="792">
+      <figcaption>Simulator preview with sample data</figcaption>
+    </figure>
+  </div>
+
+  <h2>Caveats</h2>
+  <ul class="caveats">
+    <li><strong>X3 only.</strong> It needs the X3's clock. Turn on reading stats and make sure the date and time are right.</li>
+    <li><strong>Page numbers</strong> use CrossInk's stable page numbers, so run your EPUBs through the
+      <a href="https://inky.crossink.dev/#epub-optimizer">CrossInk EPUB Optimizer</a>. Without it the page count stays blank.</li>
+    <li><strong>USB-locked device?</strong> USB flashing won't work. Download the <code>.bin</code> from the
+      <a href="https://github.com/durgakulla/CrossInk/releases/tag/v1.0.0">release</a> and use
+      <strong>Settings → System → SD Card Firmware Update</strong> (needs CrossInk installed first).</li>
+    <li>Minutes read count from install onward. Labels are English only.</li>
+    <li>Unofficial fork of <a href="https://github.com/uxjulia/CrossInk">CrossInk</a>, so please don't report issues to the CrossInk developers.
+      To go back, change the sleep screen first, then install official CrossInk from
+      <a href="https://inky.crossink.dev/#flash-tools">Inky</a>.</li>
+  </ul>
+</main>
+</body>
+</html>
