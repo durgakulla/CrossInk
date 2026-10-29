@@ -43,6 +43,7 @@ The main data directory is `.crosspoint` on the SD card. It stores render caches
 │   ├── cover_absolute.bmp  # Four-tone image-mode cover (generated separately)
 │   ├── cover_crop_absolute.bmp # Cropped four-tone image-mode cover
 │   ├── thumb_*.bmp         # Home/recent-books thumbnail images
+│   ├── chapter_ticks.bin   # Chapter starts for the progress bar: version, count, then uint16 thousandths of the book
 │   ├── book.bin            # Book metadata, spine, table of contents, etc.
 │   ├── css_rules.cache     # Parsed CSS rules
 │   └── sections/           # Pre-rendered chapter/page layout data

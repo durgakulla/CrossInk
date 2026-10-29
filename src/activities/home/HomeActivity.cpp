@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "../reader/BookProgressDetails.h"
 #include "../reader/BookReadingStats.h"
 #include "../reader/BookStatsActivity.h"
 #include "../reader/BookStatsTracking.h"
@@ -327,8 +328,7 @@ bool isDashboardTheme() {
 }
 
 bool isMinimalCarouselTheme() {
-  return static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) ==
-         CrossPointSettings::UI_THEME::MINIMAL_CAROUSEL;
+  return static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) == CrossPointSettings::UI_THEME::MINIMAL_CAROUSEL;
 }
 
 // Themes whose Home shows the three-book cover carousel and its artwork cache.
@@ -656,6 +656,7 @@ void HomeActivity::loadAllBookStats() {
     cachedBookStats[i] = loadRecentBookStats(recentBooks[i]);
     cachedBookProgress[i] = loadRecentBookProgress(recentBooks[i]);
   }
+  cachedBookDetailsLoaded.fill(false);
   bookStatsCached = true;
   LOG_DBG("HOME", "carousel: cached stats/progress for %d book(s) in %lums", count, millis() - start);
 }
@@ -1044,6 +1045,7 @@ void HomeActivity::onFrontlightPanelClosed() {
   showAllDevicesStats = GlobalReadingStats::hasSyncedStats();
   allDevicesGlobalStats = showAllDevicesStats ? GlobalReadingStats::loadAggregated(globalStats) : globalStats;
   bookStatsCached = false;
+  cachedBookDetailsLoaded.fill(false);
   updateHighlightedBookContext();
   requestUpdate();
 }
@@ -1077,12 +1079,30 @@ void HomeActivity::updateHighlightedBookContext(const bool allowChapterTitleRead
   hasReadingStats =
       SETTINGS.shouldTrackReadingStats() && (hasAnyBookStats(currentBookStats) || hasAnyGlobalStats(globalStats) ||
                                              (showAllDevicesStats && hasAnyGlobalStats(allDevicesGlobalStats)));
+
+  // Minimal Carousel shows the Reading Heatmap's detailed progress bar.
+  const BookProgressDetails* details = nullptr;
+  if (isMinimalCarouselTheme() && idx >= 0 && idx < kMaxCachedBooks && currentBookProgressPercent >= 0.0f) {
+    if (!cachedBookDetailsLoaded[idx]) {
+      const auto start = millis();
+      ReadingStatsDateTime now;
+      const bool hasNow = getCurrentLocalReadingStatsDateTime(now);
+      loadBookProgressDetails(recentBooks[idx].path, currentBookStats, currentBookProgressPercent,
+                              hasNow ? &now : nullptr, cachedBookDetails[idx]);
+      cachedBookDetailsLoaded[idx] = true;
+      LOG_DBG("HOME", "carousel: loaded progress details for book %d in %lums", idx, millis() - start);
+    }
+    currentBookDetails = cachedBookDetails[idx];
+    details = &currentBookDetails;
+  }
+  LyraCarouselTheme::setProgressDetails(details);
 }
 
 void HomeActivity::onExit() {
   Activity::onExit();
 
   coverGridUi.reset();
+  LyraCarouselTheme::setProgressDetails(nullptr);
   carouselMenuTouchDownIndex = -1;
   freeCoverBuffer();
   gCarouselCache.invalidate();
@@ -2239,8 +2259,7 @@ void HomeActivity::render(RenderLock&&) {
             renderer, Rect{}, static_cast<int>(menuItems.size()), menuHighlightIndex,
             [&menuItems](int index) { return menuItems[index].label; },
             [&menuItems](int index) { return menuItems[index].icon; });
-        const auto labels =
-            mappedInput.mapLabels(tr(STR_READ), tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
+        const auto labels = mappedInput.mapLabels(tr(STR_READ), tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
         GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
       }
 

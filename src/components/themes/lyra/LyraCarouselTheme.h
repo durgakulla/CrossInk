@@ -5,6 +5,7 @@
 #include "components/themes/lyra/LyraTheme.h"
 
 class GfxRenderer;
+struct BookProgressDetails;
 
 // Lyra Carousel theme metrics (zero runtime cost)
 namespace LyraCarouselMetrics {
@@ -45,6 +46,11 @@ class LyraCarouselTheme : public LyraTheme {
   static constexpr int kSideCoverH = LyraCarouselMetrics::values.homeCoverHeight - 210;  // 390
 
   static void setPreRenderIndex(int idx);
+  // Detailed progress bar for the centre book (Minimal Carousel), drawn in
+  // place of the simple footer whenever the book's progress is known; nullptr
+  // keeps the simple footer. The caller owns the details and clears this
+  // before they go away.
+  static void setProgressDetails(const BookProgressDetails* details);
   void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                            int selectorIndex, bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
                            const std::function<bool()>& storeCoverBuffer, const BookReadingStats* stats = nullptr,

@@ -11,6 +11,7 @@
 #include "./FileBrowserActivity.h"
 #include "QuickActions.h"
 #include "activities/Activity.h"
+#include "activities/reader/BookProgressDetails.h"
 #include "activities/reader/BookReadingStats.h"
 #include "activities/reader/GlobalReadingStats.h"
 #include "components/CoverGridHomeUi.h"
@@ -84,6 +85,11 @@ class HomeActivity final : public Activity {
   std::array<BookReadingStats, kMaxCachedBooks> cachedBookStats{};
   std::array<float, kMaxCachedBooks> cachedBookProgress{};
   bool bookStatsCached = false;
+  // Minimal Carousel's detailed progress bar. Each book's details are read the
+  // first time it is centred, then reused while Home stays open.
+  std::array<BookProgressDetails, kMaxCachedBooks> cachedBookDetails{};
+  std::array<bool, kMaxCachedBooks> cachedBookDetailsLoaded{};
+  BookProgressDetails currentBookDetails;
 
   uint8_t* carouselFrames[kCarouselFrameCount] = {};
   bool carouselFramesReady = false;

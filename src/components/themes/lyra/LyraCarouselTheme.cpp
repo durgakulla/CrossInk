@@ -16,6 +16,7 @@
 
 #include "RecentBooksStore.h"
 #include "activities/reader/BookReadingStats.h"
+#include "components/BookProgressBar.h"
 #include "components/TouchRegistry.h"
 #include "components/UITheme.h"
 #include "components/UiAppHelpers.h"
@@ -101,6 +102,7 @@ MenuLayoutMetrics computeMenuLayout(const GfxRenderer& renderer, int buttonCount
 }
 
 std::atomic<int> lastCarouselSelectorIndex{-1};
+std::atomic<const BookProgressDetails*> progressDetails{nullptr};
 Rect lastCenterCoverRect{0, 0, 0, 0};
 Rect cachedCenterCoverRects[LyraCarouselMetrics::values.homeRecentBooksCount];
 
@@ -292,6 +294,10 @@ void formatCompactReadingTime(uint32_t seconds, char* buf, size_t len) {
 // ---------------------------------------------------------------------------
 // Static helpers
 // ---------------------------------------------------------------------------
+void LyraCarouselTheme::setProgressDetails(const BookProgressDetails* details) {
+  progressDetails.store(details, std::memory_order_relaxed);
+}
+
 void LyraCarouselTheme::setPreRenderIndex(int idx) {
   lastCarouselSelectorIndex.store(idx, std::memory_order_relaxed);
   if (idx >= 0 && idx < LyraCarouselMetrics::values.homeRecentBooksCount) {
@@ -553,6 +559,17 @@ void LyraCarouselTheme::drawReadingProgress(GfxRenderer& renderer, Rect rect,
   const int footerMaxWidth = std::max(0, screenW - 2 * LyraCarouselMetrics::values.contentSidePadding);
   const int footerWidth = std::min(footerMaxWidth, centerCoverRect.width);
   const int footerX = centerCoverRect.x + (centerCoverRect.width - footerWidth) / 2;
+
+  // Minimal Carousel: the Reading Heatmap's detailed bar, with the start and
+  // finish dates in the space beside it.
+  const BookProgressDetails* details = progressDetails.load(std::memory_order_relaxed);
+  if (details && hasProgress) {
+    drawBookProgressBar(renderer, *details, footerX, infoY, footerWidth);
+    int viewTop = 0, viewRight = 0, viewBottom = 0, viewLeft = 0;
+    renderer.getOrientedViewableTRBL(&viewTop, &viewRight, &viewBottom, &viewLeft);
+    drawBookProgressDates(renderer, *details, viewLeft, footerX, footerWidth, screenW - viewRight, infoY);
+    return;
+  }
 
   // Above the bar: time read on the left, estimated time left on the right.
   uint32_t timeLeftSeconds = 0;

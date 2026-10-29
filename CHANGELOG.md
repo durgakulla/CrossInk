@@ -3,7 +3,7 @@
 ### Added
 
 - Reading Heatmap sleep screen (devices with a clock chip: X3, X4 Pro and X4 Classic): the date it went to sleep with a moon icon, your current book's cover and a progress bar marked at each chapter (time read, time left in the chapter and the book, pages per minute, percent and page, using stable page numbers for EPUBs) with the start date on its left and the finished date, or the estimated one marked "(est.)", on its right, above a calendar of the last 5 months, one block per month, shaded by minutes read each day, with your current reading streak (best streak in brackets), books finished, and time read in total, this month, and today. Days you read before this version show in the lightest shade. Choose it under Display > Sleep Screen.
-- Minimal Carousel UI theme: Minimal's screens and front-button home navigation (Menu, Browse, Settings, Read) with Lyra Carousel's three-book cover carousel on Home. The side buttons scroll the carousel, and on touch devices you can swipe across the covers or tap a side cover; Read opens the book in the middle.
+- Minimal Carousel UI theme: Minimal's screens and front-button home navigation (Menu, Browse, Settings, Read) with Lyra Carousel's three-book cover carousel on Home. The side buttons scroll the carousel, and on touch devices you can swipe across the covers or tap a side cover; Read opens the book in the middle. The book in the middle gets the Reading Heatmap's detailed progress bar: time read, time left in the chapter and the book, pages per minute, percent and page, chapter marks, and the start and (estimated) finish dates beside it.
 - Auto-hide Status Bars (Reader settings): EPUB pages use the space normally reserved for the status bars, and the new Show/Hide Status Bars shortcut action (assign it to Short Power, a side button, or Quick Actions under Controls) shows your configured bars over the page for 5 seconds. Pressing it again or turning the page hides them; Back and Confirm keep their normal actions. Each bar's configured progress line stays on the page while the bars are hidden; turn on Auto-hide Progress Lines to hide the lines too. Both toggles are also in the in-book menu's Settings tab, under Status Bars, and change the same global settings.
 
 ### Changed
@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- Chapter marks on the Reading Heatmap progress bar now appear for books whose chapters share a file (common in Project Gutenberg EPUBs) or sit under a single title entry in the table of contents. Each book's marks are worked out once and saved in its cache.
 - The current and longest reading streaks no longer count days dated after today, which could happen after the clock or time zone was changed. They now match the days shown on the Reading Heatmap.
 - Fixed a crash and restart when turning the page with a button shortcut (for example a side or power button set to Page Turn) on the end-of-book screen. These shortcuts now behave like the page buttons there: next goes home and previous returns to the last page.
 

@@ -13,6 +13,7 @@
 #include "CrossPointSettings.h"
 #include "activities/reader/DailyReadingMinutes.h"
 #include "activities/reader/GlobalReadingStats.h"
+#include "components/BookProgressBar.h"
 #include "fontIds.h"
 
 namespace {
@@ -32,13 +33,6 @@ constexpr int kSectionGap = 16;
 // Header: the date the device went to sleep, centered, with a moon at the right.
 constexpr int kHeaderGap = 6;
 constexpr int kMoonSize = 14;
-// Book progress footer under the cover, laid out like the carousel's.
-constexpr int kProgressLabelToBarGap = 3;
-constexpr int kProgressBarHeight = 7;
-constexpr int kProgressBarToLabelGap = 2;
-// Stacks the lines of a date beside the bar closer together; small-font lines
-// have spare leading.
-constexpr int kDateLineOverlap = 4;
 constexpr uint32_t kMediumDaySeconds = 15U * 60U;
 constexpr uint32_t kHeavyDaySeconds = 45U * 60U;
 
@@ -157,90 +151,6 @@ void formatDuration(const uint32_t seconds, char* buf, const size_t len, const u
   formatCompactReadingDuration(seconds, buf, len);
 }
 
-void formatPercent(const float percent, char* buf, const size_t len) {
-  if (percent < 0.0f) {
-    snprintf(buf, len, "-");
-    return;
-  }
-  snprintf(buf, len, "%d%%", static_cast<int>(std::min(percent, 100.0f) + 0.5f));
-}
-
-// Time read, chapter time left and book time left above the bar; pace, percent
-// and page below it.
-// Missing values are left out.
-void drawBookProgress(const GfxRenderer& renderer, const HeatmapBookStats& book, const int x, const int y,
-                      const int width) {
-  const int lineHeight = renderer.getLineHeight(SMALL_FONT_ID);
-  const auto drawRightAligned = [&](const char* text, const int textY) {
-    renderer.drawText(SMALL_FONT_ID, x + width - renderer.getTextWidth(SMALL_FONT_ID, text), textY, text);
-  };
-  char buf[32];
-  if (book.readingSeconds > 0) {
-    formatCompactReadingDuration(book.readingSeconds, buf, sizeof(buf));
-    renderer.drawText(SMALL_FONT_ID, x, y, buf);
-  }
-  if (book.timeLeftSeconds > 0) {
-    formatCompactReadingDuration(book.timeLeftSeconds, buf, sizeof(buf));
-    drawRightAligned(buf, y);
-  }
-  if (book.chapterTimeLeftSeconds > 0) {
-    char duration[24];
-    formatCompactReadingDuration(book.chapterTimeLeftSeconds, duration, sizeof(duration));
-    snprintf(buf, sizeof(buf), tr(STR_HEATMAP_CHAPTER_LEFT), duration);
-    renderer.drawText(SMALL_FONT_ID, x + (width - renderer.getTextWidth(SMALL_FONT_ID, buf)) / 2, y, buf);
-  }
-
-  const int barY = y + lineHeight + kProgressLabelToBarGap;
-  renderer.drawRect(x, barY, width, kProgressBarHeight, true);
-  const float progress = std::clamp(book.progressPercent, 0.0f, 100.0f);
-  const int filled = static_cast<int>(progress / 100.0f * static_cast<float>(width));
-  if (filled > 0) renderer.fillRect(x, barY, filled, kProgressBarHeight, true);
-  // Chapter starts cut the bar's inside: white over the read part, black over
-  // the rest.
-  for (int i = 0; i < book.chapterTickCount; ++i) {
-    const int tickX = x + book.chapterTicks[i] * width / 1000;
-    if (tickX <= x || tickX >= x + width - 1) continue;
-    renderer.drawLine(tickX, barY + 1, tickX, barY + kProgressBarHeight - 2, tickX >= x + filled);
-  }
-
-  const int belowY = barY + kProgressBarHeight + kProgressBarToLabelGap;
-  // Same pace as the book stats screens, which need over a minute of reading.
-  if (book.readingSeconds > 60 && book.pagesTurned > 0) {
-    const float pagesPerMinute = static_cast<float>(book.pagesTurned) * 60.0f / static_cast<float>(book.readingSeconds);
-    snprintf(buf, sizeof(buf), tr(STR_HEATMAP_PAGES_PER_MIN_VALUE), pagesPerMinute);
-    renderer.drawText(SMALL_FONT_ID, x, belowY, buf);
-  }
-  if (book.progressPercent >= 0.0f) {
-    formatPercent(book.progressPercent, buf, sizeof(buf));
-    renderer.drawText(SMALL_FONT_ID, x + (width - renderer.getTextWidth(SMALL_FONT_ID, buf)) / 2, belowY, buf);
-  }
-  if (book.page > 0 && book.pageCount > 0) {
-    snprintf(buf, sizeof(buf), "%lu/%lu", static_cast<unsigned long>(book.page),
-             static_cast<unsigned long>(book.pageCount));
-    drawRightAligned(buf, belowY);
-  }
-}
-
-// A date, its year, and an optional note (e.g. "(est.)") stacked and centered
-// together on (centerX, centerY), the progress bar's middle.
-void drawDateBesideBar(const GfxRenderer& renderer, const int centerX, const int centerY, const ReadingStatsDate& date,
-                       const char* note) {
-  if (!date.isValid()) return;
-  char dayText[16];
-  formatReadingStatsShortDate(date, dayText, sizeof(dayText));
-  char yearText[8];
-  snprintf(yearText, sizeof(yearText), "%u", static_cast<unsigned>(date.year));
-  const int lineStep = renderer.getLineHeight(SMALL_FONT_ID) - kDateLineOverlap;
-  const char* const lines[3] = {dayText, yearText, note};
-  const int lineCount = note ? 3 : 2;
-  int lineY = centerY - ((lineCount - 1) * lineStep + renderer.getLineHeight(SMALL_FONT_ID)) / 2;
-  for (int i = 0; i < lineCount; ++i) {
-    const char* line = lines[i];
-    renderer.drawText(SMALL_FONT_ID, centerX - renderer.getTextWidth(SMALL_FONT_ID, line) / 2, lineY, line);
-    lineY += lineStep;
-  }
-}
-
 // "Sat, Oct 24, 2026", or "Sat, 24 Oct 2026" when the date format puts the day first.
 void formatHeaderDate(const ReadingStatsDate& date, char* buf, const size_t len) {
   const char* const weekdays[kDaysPerWeek] = {tr(STR_HEATMAP_DAY_MON), tr(STR_HEATMAP_DAY_TUE), tr(STR_HEATMAP_DAY_WED),
@@ -293,7 +203,8 @@ void drawStatColumn(const GfxRenderer& renderer, const int centerX, const int y,
 
 void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalReadingStats& globalStats,
                                    const DailyReadingMinutes* dailyMinutes, const ReadingStatsDate& today,
-                                   const char* coverBmpPath, const HeatmapBookStats* bookStats, const bool inverted) {
+                                   const char* coverBmpPath, const BookProgressDetails* bookStats,
+                                   const bool inverted) {
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
   int viewTop = 0, viewRight = 0, viewBottom = 0, viewLeft = 0;
@@ -336,8 +247,7 @@ void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalRead
   }
 
   const int monthRowHeight = smallLineHeight + 4;
-  const int progressHeight =
-      bookStats ? 2 * smallLineHeight + kProgressLabelToBarGap + kProgressBarHeight + kProgressBarToLabelGap : 0;
+  const int progressHeight = bookStats ? bookProgressBarHeight(renderer) : 0;
   const int heatmapHeightWithoutGrid =
       (bookStats ? progressHeight + kCoverGap : 0) + monthRowHeight + kSectionGap + statsHeight;
   const auto gapForPitch = [](const int cellPitch) { return std::max(3, cellPitch / 5); };
@@ -393,14 +303,11 @@ void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalRead
   int y = coverDrawn ? coverY + coverH + kCoverGap : usableTop + std::max(0, (usableHeight - heatmapHeight) / 2);
   if (bookStats) {
     // The progress bar spans the cover's width.
-    drawBookProgress(renderer, *bookStats, coverDrawn ? coverX : left, y, coverDrawn ? coverW : usableWidth);
+    drawBookProgressBar(renderer, *bookStats, coverDrawn ? coverX : left, y, coverDrawn ? coverW : usableWidth);
     // Start date to the left of the bar, finished or estimated finish date to
     // the right, in the space beside the cover.
     if (coverDrawn) {
-      const int barCenterY = y + smallLineHeight + kProgressLabelToBarGap + kProgressBarHeight / 2;
-      drawDateBesideBar(renderer, viewLeft + (coverX - viewLeft) / 2, barCenterY, bookStats->startDate, nullptr);
-      drawDateBesideBar(renderer, coverX + coverW + (screenWidth - viewRight - coverX - coverW) / 2, barCenterY,
-                        bookStats->endDate, bookStats->finished ? nullptr : tr(STR_HEATMAP_ESTIMATED));
+      drawBookProgressDates(renderer, *bookStats, viewLeft, coverX, coverW, screenWidth - viewRight, y);
     }
     y += progressHeight + kCoverGap;
   }
