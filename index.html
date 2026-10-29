@@ -493,7 +493,7 @@
   // X3 / X4 Pro toggle: swap each screenshot and the bezel drawn around it.
   (function () {
     var sizes = { x3: [528, 792], x4pro: [480, 800] };
-    var buttons = Array.prototype.slice.call(document.querySelectorAll(".seg button"));
+    var buttons = Array.prototype.slice.call(document.querySelectorAll(".screens-head .seg button"));
     var devices = Array.prototype.slice.call(document.querySelectorAll("#screens .device"));
     buttons.forEach(function (button) {
       button.addEventListener("click", function () {
@@ -507,12 +507,6 @@
           el.classList.toggle("x4pro", device === "x4pro");
         });
       });
-    });
-    // Apply the X3 view once everything has loaded, the same as clicking it,
-    // so the screenshots and bezels are redrawn cleanly on first load.
-    window.addEventListener("load", function () {
-      var x3 = buttons.filter(function (b) { return b.getAttribute("data-device") === "x3"; })[0];
-      if (x3 && x3.getAttribute("aria-pressed") === "true") x3.click();
     });
   })();
 
