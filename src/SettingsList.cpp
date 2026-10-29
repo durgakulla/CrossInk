@@ -415,11 +415,14 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
       }
     }
 
-    if (!gpio.deviceIsX3()) {
-      auto sleepScreenIt =
-          std::find_if(v.begin(), v.end(), [](const SettingInfo& s) { return s.nameId == StrId::STR_SLEEP_SCREEN; });
-      if (sleepScreenIt != v.end()) {
+    auto sleepScreenIt =
+        std::find_if(v.begin(), v.end(), [](const SettingInfo& s) { return s.nameId == StrId::STR_SLEEP_SCREEN; });
+    if (sleepScreenIt != v.end()) {
+      if (!gpio.deviceIsX3()) {
         removeEnumRawValue(*sleepScreenIt, static_cast<uint8_t>(CrossPointSettings::MINIMAL_STATS_SLEEP));
+      }
+      // The heatmap is laid out by date, so it needs a clock chip that keeps time through sleep (X3, X4 Pro).
+      if (!halClock.isAvailable()) {
         removeEnumRawValue(*sleepScreenIt, static_cast<uint8_t>(CrossPointSettings::HEATMAP_SLEEP));
       }
     }

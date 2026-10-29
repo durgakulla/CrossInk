@@ -21,8 +21,8 @@ constexpr int kDashboardSleepCoverHeight = DashboardMetrics::homeCoverImageHeigh
 constexpr int kDashboardSleepCoverWidth = DashboardMetrics::homeCoverImageWidth;
 // The largest 2:3 cover that leaves room for the Reading Heatmap's progress bar,
 // grid and stats on the X3, drawn at native size so dithered covers stay clean.
-constexpr int kHeatmapSleepCoverWidth = 308;
-constexpr int kHeatmapSleepCoverHeight = 462;
+constexpr int kHeatmapSleepCoverWidth = 298;
+constexpr int kHeatmapSleepCoverHeight = 447;
 
 bool shouldPrepareFullCover() {
   return SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::COVER ||

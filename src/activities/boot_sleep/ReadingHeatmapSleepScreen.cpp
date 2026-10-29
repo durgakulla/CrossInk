@@ -10,6 +10,7 @@
 #include <iterator>
 #include <numeric>
 
+#include "CrossPointSettings.h"
 #include "activities/reader/DailyReadingMinutes.h"
 #include "activities/reader/GlobalReadingStats.h"
 #include "fontIds.h"
@@ -24,10 +25,13 @@ constexpr int kMinPitch = 13;
 constexpr int kSideInset = 10;
 constexpr int kMonthGap = 8;
 constexpr int kWeekdayLabelGap = 10;
-constexpr int kTopInset = 14;
+constexpr int kTopInset = 8;
 constexpr int kBottomInset = 16;
-constexpr int kCoverGap = 18;
-constexpr int kSectionGap = 20;
+constexpr int kCoverGap = 12;
+constexpr int kSectionGap = 16;
+// Header: the date the device went to sleep, centered, with a moon at the right.
+constexpr int kHeaderGap = 6;
+constexpr int kMoonSize = 14;
 // Book progress footer under the cover, laid out like the carousel's.
 constexpr int kProgressLabelToBarGap = 3;
 constexpr int kProgressBarHeight = 7;
@@ -237,6 +241,47 @@ void drawDateBesideBar(const GfxRenderer& renderer, const int centerX, const int
   }
 }
 
+// "Sat, Oct 24, 2026", or "Sat, 24 Oct 2026" when the date format puts the day first.
+void formatHeaderDate(const ReadingStatsDate& date, char* buf, const size_t len) {
+  const char* const weekdays[kDaysPerWeek] = {tr(STR_HEATMAP_DAY_MON), tr(STR_HEATMAP_DAY_TUE), tr(STR_HEATMAP_DAY_WED),
+                                              tr(STR_HEATMAP_DAY_THU), tr(STR_HEATMAP_DAY_FRI), tr(STR_HEATMAP_DAY_SAT),
+                                              tr(STR_HEATMAP_DAY_SUN)};
+  char month[8];
+  formatReadingStatsMonthToken(date, month, sizeof(month));
+  const char* weekday = weekdays[readingStatsDayOfWeekIndex(date)];
+  const unsigned day = date.day;
+  const unsigned year = date.year;
+  switch (SETTINGS.dateFormat) {
+    case CrossPointSettings::DATE_FORMAT_DAY_MONTH_YEAR_LONG:
+    case CrossPointSettings::DATE_FORMAT_DAY_MONTH_YEAR_NUMERIC:
+    case CrossPointSettings::DATE_FORMAT_DAY_MONTH_NUMERIC:
+    case CrossPointSettings::DATE_FORMAT_DAY_MONTH_LONG:
+      snprintf(buf, len, "%s, %u %s %u", weekday, day, month, year);
+      break;
+    default:
+      snprintf(buf, len, "%s, %s %u, %u", weekday, month, day, year);
+      break;
+  }
+}
+
+// A filled crescent: inside a circle but outside the same circle shifted up
+// and to the right.
+void drawMoon(const GfxRenderer& renderer, const int x, const int y, const int size) {
+  const float r = size / 2.0f;
+  const float shift = size * 0.32f;
+  for (int py = 0; py < size; ++py) {
+    for (int px = 0; px < size; ++px) {
+      const float dx = px + 0.5f - r;
+      const float dy = py + 0.5f - r;
+      const float cx = dx - shift;
+      const float cy = dy + shift * 0.6f;
+      if (dx * dx + dy * dy <= r * r && cx * cx + cy * cy > r * r * 0.72f) {
+        renderer.drawPixel(x + px, y + py, true);
+      }
+    }
+  }
+}
+
 void drawStatColumn(const GfxRenderer& renderer, const int centerX, const int y, const char* value, const char* label) {
   const int valueWidth = renderer.getTextWidth(UI_10_FONT_ID, value, EpdFontFamily::BOLD);
   renderer.drawText(UI_10_FONT_ID, centerX - valueWidth / 2, y, value, true, EpdFontFamily::BOLD);
@@ -297,7 +342,9 @@ void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalRead
       (bookStats ? progressHeight + kCoverGap : 0) + monthRowHeight + kSectionGap + statsHeight;
   const auto gapForPitch = [](const int cellPitch) { return std::max(3, cellPitch / 5); };
 
-  const int usableTop = viewTop + kTopInset;
+  const int headerTop = viewTop + kTopInset;
+  const int headerHeight = std::max(smallLineHeight, kMoonSize);
+  const int usableTop = headerTop + headerHeight + kHeaderGap;
   const int usableHeight = screenHeight - viewBottom - kBottomInset - usableTop;
 
   // Shrinking a dithered cover by even a few pixels drops whole rows and
@@ -329,6 +376,14 @@ void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalRead
   const int heatmapHeight = heatmapHeightWithoutGrid + gridHeight;
 
   renderer.clearScreen();
+
+  // The date it went to sleep (a "last used" date until it wakes again) and a
+  // moon marking this as the sleep screen.
+  char headerDate[40];
+  formatHeaderDate(today, headerDate, sizeof(headerDate));
+  renderer.drawText(SMALL_FONT_ID, left + (usableWidth - renderer.getTextWidth(SMALL_FONT_ID, headerDate)) / 2,
+                    headerTop + (headerHeight - smallLineHeight) / 2, headerDate);
+  drawMoon(renderer, right - kMoonSize, headerTop + (headerHeight - kMoonSize) / 2, kMoonSize);
 
   // The cover takes whatever height the heatmap leaves; the pair is centered.
   const int coverBoxHeight = usableHeight - heatmapHeight - kCoverGap;
@@ -405,8 +460,20 @@ void drawReadingHeatmapSleepScreen(const GfxRenderer& renderer, const GlobalRead
   formatDuration(dailyMinutes ? dailyMinutes->secondsForDay(todayIndex) : 0, values[4], sizeof(values[4]));
   const char* const labels[kStatCount] = {tr(STR_HEATMAP_STREAK_BEST), tr(STR_HEATMAP_FINISHED),
                                           tr(STR_HEATMAP_ALL_TIME), tr(STR_HEATMAP_THIS_MONTH), tr(STR_HEATMAP_TODAY)};
+  // Columns are as wide as their text, with equal space around each, so long
+  // labels don't run into their neighbours on narrower screens.
+  int columnWidths[kStatCount];
+  int freeWidth = usableWidth;
   for (int i = 0; i < kStatCount; ++i) {
-    drawStatColumn(renderer, left + usableWidth * (2 * i + 1) / (2 * kStatCount), y, values[i], labels[i]);
+    columnWidths[i] = std::max(renderer.getTextWidth(UI_10_FONT_ID, values[i], EpdFontFamily::BOLD),
+                               renderer.getTextWidth(SMALL_FONT_ID, labels[i]));
+    freeWidth -= columnWidths[i];
+  }
+  const int columnSpace = std::max(0, freeWidth) / kStatCount;
+  int columnX = left + columnSpace / 2;
+  for (int i = 0; i < kStatCount; ++i) {
+    drawStatColumn(renderer, columnX + columnWidths[i] / 2, y, values[i], labels[i]);
+    columnX += columnWidths[i] + columnSpace;
   }
 
   if (inverted) {
