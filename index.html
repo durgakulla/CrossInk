@@ -66,6 +66,23 @@
   #localStatus.bad { color: var(--fg); border-left: 2px solid var(--fg); padding-left: 10px; }
   button.go.alt { background: transparent; color: var(--fg); border: 1px solid var(--fg); }
   button.go:disabled { opacity: 0.35; cursor: not-allowed; }
+  .devicepick { margin-bottom: 18px; }
+  .flash-steps { list-style: none; margin: 16px 0 0; padding: 0; font-size: 0.92rem; color: var(--muted); }
+  .flash-steps li { position: relative; padding: 3px 0 3px 26px; margin: 0; border: 0; }
+  .flash-steps li::before { content: ""; position: absolute; left: 4px; top: 0.62em; width: 10px; height: 10px;
+    border: 1px solid var(--faint); border-radius: 50%; }
+  .flash-steps li[data-state="running"] { color: var(--fg); }
+  .flash-steps li[data-state="running"]::before { border-color: var(--fg); border-right-color: transparent;
+    animation: spin 0.9s linear infinite; }
+  .flash-steps li[data-state="done"] { color: var(--fg); }
+  .flash-steps li[data-state="done"]::before { background: var(--fg); border-color: var(--fg); }
+  .flash-steps li[data-state="failed"] { color: var(--fg); font-weight: 600; }
+  .flash-steps li[data-state="failed"]::before { border: 2px solid var(--fg); border-radius: 2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .flash-steps li[data-state="running"]::before { animation: none; } }
+  .flash-bar { width: 100%; height: 6px; margin-top: 10px; accent-color: var(--fg); }
+  .flash-status { margin: 10px 0 0; font-size: 0.9rem; }
+  .flash-status.bad { border-left: 2px solid var(--fg); padding-left: 10px; }
   .warn { border: 1px dashed var(--fg); border-radius: 10px; padding: 12px 14px; margin: 0; font-size: 0.92rem; }
 
   section { padding: 48px 0; border-top: 1px solid var(--line); }
@@ -180,22 +197,33 @@
         Install it from your browser in about a minute.</p>
     </div>
     <div class="install">
+      <div class="seg devicepick" role="group" aria-label="Your device">
+        <button type="button" data-install="c3" aria-pressed="true">X3 / X4</button>
+        <button type="button" data-install="x4pro" aria-pressed="false">X4 Pro</button>
+      </div>
       <ol>
         <li>Open this page in <strong>Chrome or Edge</strong> on a computer.</li>
-        <li>Plug in your X3 or X4 Pro with a USB-C data cable and turn it on.</li>
+        <li>Plug in your reader with a USB-C data cable and turn it on.</li>
         <li>Click <strong>Install</strong>, pick the device, and wait until it says done.</li>
         <li>Turn on the features you want (see below).</li>
       </ol>
-      <esp-web-install-button manifest="manifest.json">
-        <button class="go" slot="activate">Install</button>
-        <p slot="unsupported" class="warn">This browser can't talk to USB devices. Use Chrome or Edge on a computer.</p>
-        <p slot="not-allowed" class="warn">Installing needs a secure (https) page.</p>
-      </esp-web-install-button>
-      <p class="fine">Your settings and SD card are kept; nothing is erased.
-        The installer picks the right firmware for your device.
-        USB-locked device? Use the <a href="#caveats">SD card method</a>.</p>
-      <p class="fine"><strong>X4 Pro:</strong> keep it awake on its home screen while installing. If the browser can't
-        find it, take out the SD card and try again. When it's done, unplug and replug the cable, then hold power to start it.</p>
+      <div data-for="c3">
+        <esp-web-install-button manifest="manifest.json">
+          <button class="go" slot="activate">Install</button>
+          <p slot="unsupported" class="warn">This browser can't talk to USB devices. Use Chrome or Edge on a computer.</p>
+          <p slot="not-allowed" class="warn">Installing needs a secure (https) page.</p>
+        </esp-web-install-button>
+        <p class="fine">Your settings and SD card are kept; nothing is erased.
+          USB-locked device? Use the <a href="#caveats">SD card method</a>.</p>
+      </div>
+      <div data-for="x4pro" hidden>
+        <button class="go" type="button" id="x4proGo">Install on X4 Pro</button>
+        <div id="x4proFlash"></div>
+        <p class="fine">Installs into the X4 Pro's spare firmware slot, like the official installer. The bootloader,
+          partition table and the firmware it runs now aren't touched, and your settings and SD card are kept.</p>
+        <p class="fine">Keep it awake on its home screen while installing. If the browser can't find it, take out the
+          SD card and try again. When it's done, unplug and replug the cable, then hold power to start it.</p>
+      </div>
 
       <details class="local">
         <summary>Flash your own .bin instead</summary>
@@ -208,6 +236,8 @@
           <span id="localName" class="fine" style="margin:0">No file chosen</span>
         </div>
         <p id="localStatus" hidden></p>
+        <button class="go alt" type="button" id="localX4ProGo" hidden>Install this file on X4 Pro</button>
+        <div id="localX4ProFlash"></div>
         <esp-web-install-button id="localInstall">
           <button class="go alt" slot="activate" id="localGo" disabled>Install this file</button>
           <p slot="unsupported" class="warn">This browser can't talk to USB devices. Use Chrome or Edge on a computer.</p>
@@ -310,6 +340,7 @@
   </footer>
 </div>
 
+<script src="x4pro-flash.js?v=1"></script>
 <script>
   // Flash a firmware file picked from this computer. The file stays in the
   // browser: the manifest and firmware are in-memory blob URLs, and only the
@@ -317,16 +348,22 @@
   (function () {
     var APP_SLOT_BYTES = 0x640000;  // app0 in CrossInk's partitions.csv
     // ESP image chip IDs, and the bootloader this site serves for each.
-    var CHIPS = {
-      5: { family: "ESP32-C3", bootloader: "firmware/bootloader.bin", device: "X3" },
-      9: { family: "ESP32-S3", bootloader: "firmware/bootloader-x4-pro.bin", device: "X4 Pro" }
-    };
+    var ESP32_C3_CHIP_ID = 5;
+    var ESP32_S3_CHIP_ID = 9;
+    var x4proGo = document.getElementById("localX4ProGo");
     var input = document.getElementById("localBin");
     var nameEl = document.getElementById("localName");
     var status = document.getElementById("localStatus");
     var go = document.getElementById("localGo");
     var installer = document.getElementById("localInstall");
     var urls = [];
+    var localX4ProFile = null;
+    x4proGo.addEventListener("click", function () {
+      if (!localX4ProFile) return;
+      localX4ProFile.arrayBuffer().then(function (buf) {
+        runX4ProInstall(new Uint8Array(buf), x4proGo, document.getElementById("localX4ProFlash"));
+      });
+    });
 
     function show(text, bad) {
       status.hidden = false;
@@ -338,6 +375,9 @@
       urls.forEach(URL.revokeObjectURL);
       urls = [];
       go.disabled = true;
+      installer.hidden = false;
+      x4proGo.hidden = true;
+      localX4ProFile = null;
       installer.removeAttribute("manifest");
       var file = input.files[0];
       if (!file) { nameEl.textContent = "No file chosen"; status.hidden = true; return; }
@@ -347,8 +387,15 @@
         var b = new Uint8Array(buf);
         if (b.length < 14 || b[0] !== 0xE9) { show("This isn't an ESP32 firmware image.", true); return; }
         var chip = b[12] | (b[13] << 8);
-        var target = CHIPS[chip];
-        if (!target) { show("This firmware is for a different chip, not the X3's ESP32-C3 or the X4 Pro's ESP32-S3.", true); return; }
+        if (chip === ESP32_S3_CHIP_ID) {
+          // X4 Pro files use the spare-slot installer, never ESP Web Tools.
+          installer.hidden = true;
+          x4proGo.hidden = false;
+          localX4ProFile = file;
+          show("Looks like X4 Pro (ESP32-S3) firmware. Ready to install.", false);
+          return;
+        }
+        if (chip !== ESP32_C3_CHIP_ID) { show("This firmware is for a different chip, not the X3's ESP32-C3 or the X4 Pro's ESP32-S3.", true); return; }
         var site = function (p) { return new URL(p, location.href).href; };
         var bin = URL.createObjectURL(file);
         var manifest = {
@@ -356,8 +403,8 @@
           version: "local",
           new_install_prompt_erase: false,
           new_install_improv_wait_time: 0,
-          builds: [{ chipFamily: target.family, parts: [
-            { path: site(target.bootloader), offset: 0 },
+          builds: [{ chipFamily: "ESP32-C3", parts: [
+            { path: site("firmware/bootloader.bin"), offset: 0 },
             { path: site("firmware/partitions.bin"), offset: 32768 },
             { path: site("firmware/boot_app0.bin"), offset: 57344 },
             { path: bin, offset: 65536 }
@@ -367,7 +414,78 @@
         urls = [bin, manifestUrl];
         installer.setAttribute("manifest", manifestUrl);
         go.disabled = false;
-        show("Looks like " + target.family + " firmware for the " + target.device + ". Ready to install.", false);
+        show("Looks like X3 / X4 (ESP32-C3) firmware. Ready to install.", false);
+      });
+    });
+  })();
+
+  // Drives the X4 Pro installer (x4pro-flash.js) and shows its steps.
+  var X4PRO_STEPS = ["Connect to the X4 Pro", "Check the partition table", "Find the spare firmware slot",
+    "Write the firmware", "Switch to the new firmware", "Restart"];
+  function runX4ProInstall(firmware, button, panel) {
+    if (!("serial" in navigator)) {
+      panel.innerHTML = '<p class="warn">This browser can\'t talk to USB devices. Use Chrome or Edge on a computer.</p>';
+      return;
+    }
+    panel.innerHTML = "";
+    var list = document.createElement("ol");
+    list.className = "flash-steps";
+    X4PRO_STEPS.forEach(function (label) {
+      var li = document.createElement("li");
+      li.textContent = label;
+      list.appendChild(li);
+    });
+    var bar = document.createElement("progress");
+    bar.className = "flash-bar";
+    bar.max = 1;
+    bar.value = 0;
+    bar.hidden = true;
+    var status = document.createElement("p");
+    status.className = "flash-status";
+    status.setAttribute("role", "status");
+    panel.append(list, bar, status);
+    button.disabled = true;
+    installX4Pro(firmware, function (index, state) {
+      list.children[index].setAttribute("data-state", state);
+      if (index === 3) bar.hidden = state !== "running";
+    }, function (fraction) { bar.value = fraction; }).then(function () {
+      status.className = "flash-status";
+      status.textContent = "Done. Unplug and replug the cable, then hold power to start CrossInk.";
+    }).catch(function (e) {
+      bar.hidden = true;
+      status.className = "flash-status bad";
+      // The port chooser was closed without picking a device.
+      status.textContent = e && e.name === "NotFoundError" ? "No device picked. Nothing was written." : String(e && e.message || e);
+    }).then(function () { button.disabled = false; });
+  }
+
+  document.getElementById("x4proGo").addEventListener("click", function () {
+    var button = this;
+    button.disabled = true;
+    fetch("firmware/firmware-x4-pro.bin").then(function (r) {
+      if (!r.ok) throw new Error("Couldn't download the firmware (" + r.status + ").");
+      return r.arrayBuffer();
+    }).then(function (buf) {
+      runX4ProInstall(new Uint8Array(buf), button, document.getElementById("x4proFlash"));
+    }).catch(function (e) {
+      button.disabled = false;
+      document.getElementById("x4proFlash").innerHTML = "";
+      var p = document.createElement("p");
+      p.className = "flash-status bad";
+      p.textContent = e.message;
+      document.getElementById("x4proFlash").appendChild(p);
+    });
+  });
+
+  // Install card device picker: ESP Web Tools for X3 / X4, the spare-slot installer for X4 Pro.
+  (function () {
+    var buttons = Array.prototype.slice.call(document.querySelectorAll(".devicepick button"));
+    var panes = Array.prototype.slice.call(document.querySelectorAll(".install [data-for]"));
+    buttons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        var device = button.getAttribute("data-install");
+        buttons.forEach(function (b) { b.setAttribute("aria-pressed", b === button ? "true" : "false"); });
+        panes.forEach(function (pane) { pane.hidden = pane.getAttribute("data-for") !== device; });
       });
     });
   })();
