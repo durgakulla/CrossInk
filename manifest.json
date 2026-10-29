@@ -1,6 +1,6 @@
 {
-  "name": "CrossInk with Reading Heatmap",
-  "version": "1.0.0",
+  "name": "CrossInk extras",
+  "version": "1.1.0",
   "new_install_prompt_erase": false,
   "new_install_improv_wait_time": 0,
   "builds": [
@@ -11,6 +11,15 @@
         { "path": "firmware/partitions.bin", "offset": 32768 },
         { "path": "firmware/boot_app0.bin", "offset": 57344 },
         { "path": "firmware/firmware-x3-x4.bin", "offset": 65536 }
+      ]
+    },
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "firmware/bootloader-x4-pro.bin", "offset": 0 },
+        { "path": "firmware/partitions.bin", "offset": 32768 },
+        { "path": "firmware/boot_app0.bin", "offset": 57344 },
+        { "path": "firmware/firmware-x4-pro.bin", "offset": 65536 }
       ]
     }
   ]
