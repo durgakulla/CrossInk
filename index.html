@@ -508,6 +508,12 @@
         });
       });
     });
+    // Apply the X3 view once everything has loaded, the same as clicking it,
+    // so the screenshots and bezels are redrawn cleanly on first load.
+    window.addEventListener("load", function () {
+      var x3 = buttons.filter(function (b) { return b.getAttribute("data-device") === "x3"; })[0];
+      if (x3 && x3.getAttribute("aria-pressed") === "true") x3.click();
+    });
   })();
 
   // On narrow screens the screens row scrolls; keep the dots in step with it.
