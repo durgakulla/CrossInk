@@ -63,7 +63,11 @@
 
   .queue { list-style: none; margin: 12px 0 0; padding: 0; }
   .queue:empty { display: none; }
-  .queue li { border-top: 1px solid var(--line); padding: 10px 0; font-size: 0.88rem; }
+  .queue li { display: flex; align-items: flex-start; gap: 12px; border-top: 1px solid var(--line); padding: 10px 0;
+    font-size: 0.88rem; }
+  .queue .cover { flex: none; width: 44px; height: 66px; object-fit: cover; border-radius: 3px;
+    border: 1px solid var(--line); background: var(--bg); }
+  .queue .body { flex: 1; min-width: 0; }
   .queue .row { flex-wrap: nowrap; justify-content: space-between; }
   .queue .name { overflow-wrap: anywhere; font-weight: 600; }
   .queue .side { display: inline-flex; align-items: center; gap: 8px; flex: none; }
@@ -168,6 +172,6 @@
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/crossink-files.js?v=1"></script>
 <script src="chapter-marks.js?v=2"></script>
-<script src="optimizer.js?v=8"></script>
+<script src="optimizer.js?v=9"></script>
 </body>
 </html>

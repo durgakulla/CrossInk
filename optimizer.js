@@ -265,15 +265,34 @@
     Array.prototype.forEach.call(files, function (file) {
       if (!/\.epub$/i.test(file.name)) return;
       var li = document.createElement("li");
-      li.innerHTML = '<div class="row"><span class="name"></span><span class="side"><span class="state">Ready</span>' +
-        '<button type="button" class="remove" aria-label="Remove">✕</button></span></div>';
+      li.innerHTML = '<img class="cover" alt=""><div class="body"><div class="row"><span class="name"></span>' +
+        '<span class="side"><span class="state">Ready</span>' +
+        '<button type="button" class="remove" aria-label="Remove">✕</button></span></div></div>';
       li.querySelector(".name").textContent = file.name;
       queue.appendChild(li);
-      var item = { file: file, li: li, running: false, removed: false };
+      var item = { file: file, li: li, body: li.querySelector(".body"), running: false, removed: false, coverUrl: null };
       li.querySelector(".remove").addEventListener("click", function () { removeItem(item); });
       pending.push(item);
+      showCover(item);
     });
     start.disabled = busy || pending.length === 0;
+  }
+
+  // Shows the book's cover beside its name, found the same way the converter
+  // finds it for "Color cover". Books without one keep the empty placeholder.
+  async function showCover(item) {
+    try {
+      var zip = await JSZip.loadAsync(item.file);
+      var paths = Array.from(await findEpubCoverImagePaths(zip));
+      var path = paths.filter(function (p) { return zip.file(p) && /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(p); })[0];
+      if (!path || item.removed) return;
+      var data = await zip.file(path).async("blob");
+      var type = /\.svg$/i.test(path) ? "image/svg+xml" : "";
+      item.coverUrl = URL.createObjectURL(type ? new Blob([data], { type: type }) : data);
+      item.li.querySelector(".cover").src = item.coverUrl;
+    } catch (e) {
+      console.warn("No cover for " + item.file.name + ":", e);
+    }
   }
 
   // Takes a book off the list. One being converted is cancelled first and
@@ -288,6 +307,7 @@
     var index = pending.indexOf(item);
     if (index >= 0) pending.splice(index, 1);
     Array.prototype.forEach.call(item.li.querySelectorAll("a.dl"), function (a) { URL.revokeObjectURL(a.href); });
+    if (item.coverUrl) URL.revokeObjectURL(item.coverUrl);
     item.li.remove();
     start.disabled = busy || pending.length === 0;
   }
@@ -307,7 +327,7 @@
   }
 
   async function convertItem(item) {
-    var li = item.li;
+    var li = item.body;
     var bar = document.createElement("progress");
     bar.max = 100;
     bar.value = 0;
