@@ -20,7 +20,7 @@
           "offset": 57344
         },
         {
-          "path": "firmware/firmware-x3-x4.bin",
+          "path": "firmware/firmware-x3-x4.bin?v=1.4.0",
           "offset": 65536
         }
       ]

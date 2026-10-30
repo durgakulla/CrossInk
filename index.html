@@ -205,7 +205,7 @@
         <li>Turn on the features you want (see below).</li>
       </ol>
       <div data-for="c3">
-        <esp-web-install-button manifest="manifest.json">
+        <esp-web-install-button manifest="manifest.json?v=1.4.0">
           <button class="go" slot="activate">Install</button>
           <p slot="unsupported" class="warn">This browser can't talk to USB devices. Use Chrome or Edge on a computer.</p>
           <p slot="not-allowed" class="warn">Installing needs a secure (https) page.</p>
@@ -434,7 +434,7 @@
   document.getElementById("x4proGo").addEventListener("click", function () {
     var button = this;
     button.disabled = true;
-    fetch("firmware/firmware-x4-pro.bin").then(function (r) {
+    fetch("firmware/firmware-x4-pro.bin?v=1.4.0").then(function (r) {
       if (!r.ok) throw new Error("Couldn't download the firmware (" + r.status + ").");
       return r.arrayBuffer();
     }).then(function (buf) {
