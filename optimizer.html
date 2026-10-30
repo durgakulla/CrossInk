@@ -77,9 +77,9 @@
   .queue .remove:hover { color: var(--fg); background: var(--bg); }
   .queue .detail { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
   .queue progress { width: 100%; height: 5px; margin-top: 6px; accent-color: var(--fg); }
-  .queue .actions { display: flex; align-items: flex-start; gap: 12px; margin-top: 6px; }
-  .queue .actions details.marks { flex: 1; min-width: 0; margin-top: 0; padding-top: 4px; }
-  .queue a.dl { display: inline-block; margin-left: auto; flex: none; border: 1px solid var(--fg); border-radius: 7px;
+  .queue .actions { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 6px; }
+  .queue .actions details.marks { align-self: stretch; }
+  .queue a.dl { display: inline-block; border: 1px solid var(--fg); border-radius: 7px;
     padding: 4px 10px; font-weight: 600; text-decoration: none; font-size: 0.84rem; }
   .queue a.dl:hover { background: var(--bg); }
   .queue .bad { border-left: 2px solid var(--fg); padding-left: 8px; color: var(--fg); }
@@ -172,6 +172,6 @@
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/crossink-files.js?v=1"></script>
 <script src="chapter-marks.js?v=2"></script>
-<script src="optimizer.js?v=9"></script>
+<script src="optimizer.js?v=10"></script>
 </body>
 </html>

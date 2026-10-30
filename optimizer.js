@@ -372,7 +372,7 @@
       if (name !== item.file.name) li.querySelector(".name").textContent = name;
       link.download = name;
       link.textContent = "Download";
-      // Chapter marks on the left, Download on the right.
+      // Chapter marks, then Download below them.
       var actions = document.createElement("div");
       actions.className = "actions";
       li.appendChild(actions);
