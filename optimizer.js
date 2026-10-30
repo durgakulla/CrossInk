@@ -352,12 +352,16 @@
       if (name !== item.file.name) li.querySelector(".name").textContent = name;
       link.download = name;
       link.textContent = "Download";
-      li.appendChild(link);
+      // Chapter marks on the left, Download on the right.
+      var actions = document.createElement("div");
+      actions.className = "actions";
+      li.appendChild(actions);
       try {
-        await ChapterMarks.attach(li, blob, link);
+        await ChapterMarks.attach(actions, blob, link);
       } catch (e) {
         console.error("Chapter marks editor unavailable:", e);
       }
+      actions.appendChild(link);
     } catch (e) {
       bar.remove();
       if (item.removed) return;  // Cancelled from the list
