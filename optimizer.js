@@ -265,11 +265,30 @@
     Array.prototype.forEach.call(files, function (file) {
       if (!/\.epub$/i.test(file.name)) return;
       var li = document.createElement("li");
-      li.innerHTML = '<div class="row"><span class="name"></span><span class="state">Ready</span></div>';
+      li.innerHTML = '<div class="row"><span class="name"></span><span class="side"><span class="state">Ready</span>' +
+        '<button type="button" class="remove" aria-label="Remove">✕</button></span></div>';
       li.querySelector(".name").textContent = file.name;
       queue.appendChild(li);
-      pending.push({ file: file, li: li });
+      var item = { file: file, li: li, running: false, removed: false };
+      li.querySelector(".remove").addEventListener("click", function () { removeItem(item); });
+      pending.push(item);
     });
+    start.disabled = busy || pending.length === 0;
+  }
+
+  // Takes a book off the list. One being converted is cancelled first and
+  // removed once the converter stops.
+  function removeItem(item) {
+    item.removed = true;
+    if (item.running) {
+      operationCancelled = true;
+      setState(item, "Cancelling…");
+      return;
+    }
+    var index = pending.indexOf(item);
+    if (index >= 0) pending.splice(index, 1);
+    Array.prototype.forEach.call(item.li.querySelectorAll("a.dl"), function (a) { URL.revokeObjectURL(a.href); });
+    item.li.remove();
     start.disabled = busy || pending.length === 0;
   }
 
@@ -278,6 +297,16 @@
   }
 
   async function optimize(item) {
+    item.running = true;
+    try {
+      await convertItem(item);
+    } finally {
+      item.running = false;
+      if (item.removed) removeItem(item);
+    }
+  }
+
+  async function convertItem(item) {
     var li = item.li;
     var bar = document.createElement("progress");
     bar.max = 100;
@@ -294,6 +323,7 @@
       setState(item, "Optimizing…");
       operationCancelled = false;
       var blob = await convertEpubFile(source, function (percent) { bar.value = Math.min(100, percent); });
+      if (item.removed) return;
       var zip = await JSZip.loadAsync(blob);
       var locations = zip.file("META-INF/x-locations.json");
       var pages = locations ? JSON.parse(await locations.async("string")).totalReferencePages : 0;
@@ -330,6 +360,7 @@
       }
     } catch (e) {
       bar.remove();
+      if (item.removed) return;  // Cancelled from the list
       setState(item, "Failed");
       var error = document.createElement("div");
       error.className = "detail bad";
@@ -349,6 +380,7 @@
     JPEG_QUALITY = parseInt(quality.value, 10);
     ENABLE_GRAYSCALE = grayscale.checked;
     while (pending.length) await optimize(pending.shift());
+    operationCancelled = false;
     busy = false;
     start.disabled = true;
   });

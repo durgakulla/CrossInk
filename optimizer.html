@@ -66,7 +66,11 @@
   .queue li { border-top: 1px solid var(--line); padding: 10px 0; font-size: 0.88rem; }
   .queue .row { flex-wrap: nowrap; justify-content: space-between; }
   .queue .name { overflow-wrap: anywhere; font-weight: 600; }
+  .queue .side { display: inline-flex; align-items: center; gap: 8px; flex: none; }
   .queue .state { color: var(--muted); white-space: nowrap; font-size: 0.82rem; }
+  .queue .remove { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 0.9rem;
+    line-height: 1; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+  .queue .remove:hover { color: var(--fg); background: var(--bg); }
   .queue .detail { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
   .queue progress { width: 100%; height: 5px; margin-top: 6px; accent-color: var(--fg); }
   .queue a.dl { display: inline-block; margin-top: 6px; border: 1px solid var(--fg); border-radius: 7px;
@@ -162,6 +166,6 @@
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/crossink-files.js?v=1"></script>
 <script src="chapter-marks.js?v=2"></script>
-<script src="optimizer.js?v=6"></script>
+<script src="optimizer.js?v=7"></script>
 </body>
 </html>
