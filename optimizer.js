@@ -260,16 +260,11 @@
 
   // "Send to reader": sends the same file Download would (custom chapter
   // marks included) to the reader over USB.
-  function sendButton(link) {
-    var wrap = document.createElement("span");
-    wrap.className = "send";
+  function sendButton(link, status) {
     var button = document.createElement("button");
     button.type = "button";
     button.className = "dl";
     button.textContent = "Send to reader";
-    var status = document.createElement("span");
-    status.className = "send-status";
-    status.setAttribute("role", "status");
     button.addEventListener("click", async function () {
       button.disabled = true;
       status.classList.remove("bad");
@@ -287,9 +282,7 @@
         button.disabled = false;
       }
     });
-    wrap.appendChild(button);
-    wrap.appendChild(status);
-    return wrap;
+    return button;
   }
 
   // Words for matching a book to file names: lower case, no accents or
@@ -314,19 +307,11 @@
   // "Replace on reader…": lists the reader's books, suggests the one that
   // matches this book, and writes over it keeping its file name, so the
   // reader keeps that book's reading stats, position and settings.
-  function replaceButton(link, item) {
-    var wrap = document.createElement("span");
-    wrap.className = "send";
+  function replaceButton(link, item, status, panel) {
     var button = document.createElement("button");
     button.type = "button";
     button.className = "dl";
     button.textContent = "Replace on reader…";
-    var status = document.createElement("span");
-    status.className = "send-status";
-    status.setAttribute("role", "status");
-    var panel = document.createElement("div");
-    panel.className = "replace";
-    panel.hidden = true;
 
     function fail(e) {
       status.classList.add("bad");
@@ -396,13 +381,7 @@
         button.disabled = false;
       }
     });
-    wrap.appendChild(button);
-    wrap.appendChild(status);
-    var whole = document.createElement("span");
-    whole.className = "replace-wrap";
-    whole.appendChild(wrap);
-    whole.appendChild(panel);
-    return whole;
+    return button;
   }
 
   function formatBytes(bytes) {
@@ -546,12 +525,20 @@
     } catch (e) {
       console.error("Chapter marks editor unavailable:", e);
     }
+    // All buttons on one row; the replace picker and any message go below
+    // it, so the buttons never move.
     var buttons = document.createElement("div");
     buttons.className = "buttons";
+    var panel = document.createElement("div");
+    panel.className = "replace";
+    panel.hidden = true;
+    var status = document.createElement("div");
+    status.className = "send-status";
+    status.setAttribute("role", "status");
     buttons.appendChild(link);
     if (UsbSend.supported) {
-      buttons.appendChild(sendButton(link));
-      buttons.appendChild(replaceButton(link, item));
+      buttons.appendChild(sendButton(link, status));
+      buttons.appendChild(replaceButton(link, item, status, panel));
     }
     if (alreadyOptimized) {
       var again = document.createElement("button");
@@ -562,6 +549,8 @@
       buttons.appendChild(again);
     }
     actions.appendChild(buttons);
+    actions.appendChild(panel);
+    actions.appendChild(status);
   }
 
   // Puts a book back in the batch, clearing its results.

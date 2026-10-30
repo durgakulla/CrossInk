@@ -82,12 +82,11 @@
   .queue .actions { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 6px; }
   .queue .actions details.marks { align-self: stretch; }
   .queue .buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .queue .send { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
   .queue button.dl { font-family: inherit; background: transparent; color: var(--fg); cursor: pointer; }
   .queue button.dl:disabled { opacity: 0.4; cursor: wait; }
   .queue .send-status { color: var(--muted); font-size: 0.82rem; }
-  .queue .replace-wrap { display: contents; }
-  .queue .replace { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .queue .send-status:empty { display: none; }
+  .queue .replace { align-self: stretch; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .queue .replace[hidden] { display: none; }
   .queue .replace select { flex: 1; min-width: 200px; max-width: 100%; font: inherit; font-size: 0.84rem;
     padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--fg); }
@@ -191,6 +190,6 @@
 <script src="vendor/crossink-files.js?v=1"></script>
 <script src="chapter-marks.js?v=2"></script>
 <script src="usb-send.js?v=2"></script>
-<script src="optimizer.js?v=13"></script>
+<script src="optimizer.js?v=14"></script>
 </body>
 </html>
