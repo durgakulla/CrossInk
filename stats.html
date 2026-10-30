@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reading Stats</title>
+<meta name="description" content="See your CrossInk reading stats on a big screen, export them, and back them up or restore them over USB.">
+<style>
+  :root {
+    --bg: #f6f5f1; --fg: #161614; --muted: #62625c; --faint: #8c8c85;
+    --card: #ffffff; --line: #dcdbd4;
+    --btn: #161614; --btn-fg: #f6f5f1;
+    --l0: #ecebe6; --l1: #c9c8c1; --l2: #8c8c85; --l3: #161614;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121211; --fg: #ecebe6; --muted: #a5a49d; --faint: #75746e;
+      --card: #1b1b19; --line: #2f2f2b;
+      --btn: #ecebe6; --btn-fg: #121211;
+      --l0: #262624; --l1: #57574f; --l2: #8c8c85; --l3: #ecebe6;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  a { color: inherit; text-underline-offset: 3px; }
+  .site { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px 32px; }
+  header.top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 16px;
+    padding: 22px 0; font-size: 0.92rem; line-height: 1.6; color: var(--muted); }
+  header.top .mark { font-weight: 600; color: var(--fg); letter-spacing: 0.01em; text-decoration: none; }
+  header.top .mark span { display: inline-block; width: 10px; height: 10px; background: var(--fg);
+    margin-right: 8px; border-radius: 2px; vertical-align: 0; }
+  header.top nav a { color: var(--muted); }
+  header.top nav a[aria-current="page"] { color: var(--fg); text-decoration: none; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card + .card { margin-top: 14px; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+  .spacer { flex: 1; }
+  button.go { background: var(--btn); color: var(--btn-fg); border: 0; border-radius: 9px; padding: 8px 16px;
+    font: inherit; font-weight: 600; cursor: pointer; }
+  button.go:disabled, .tool:disabled { opacity: 0.4; cursor: not-allowed; }
+  .tool { font: inherit; font-size: 0.84rem; line-height: 1.4; white-space: nowrap; padding: 4px 10px;
+    border: 1px solid var(--fg); border-radius: 7px; background: transparent; color: var(--fg); cursor: pointer; }
+  .tool:hover { background: var(--bg); }
+  .tool.primary { background: var(--btn); color: var(--btn-fg); }
+  label.tool input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  #status { color: var(--muted); font-size: 0.88rem; }
+  .bad { color: var(--fg) !important; border-left: 2px solid var(--fg); padding-left: 8px; }
+  #source { color: var(--muted); font-size: 0.82rem; margin-top: 8px; }
+
+  .panel { margin-top: 12px; padding: 12px; border-radius: 8px; background: var(--bg); font-size: 0.88rem; }
+  .panel[hidden] { display: none; }
+  .panel p { margin: 0 0 8px; }
+  .panel .bar { margin-top: 8px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; }
+  .tile { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .tile b { display: block; white-space: nowrap; font-size: 1.25rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .tile span { color: var(--muted); font-size: 0.8rem; }
+  h2 { font-size: 0.95rem; margin: 0 0 10px; }
+
+  .heat { overflow-x: auto; padding-bottom: 4px; }
+  .heat svg { display: block; }
+  .heat text { fill: var(--muted); font-size: 9px; font-family: inherit; }
+  .legend { display: flex; align-items: center; gap: 4px; margin-top: 6px; color: var(--muted); font-size: 0.78rem; }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .bars { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; font-size: 0.84rem; }
+  .bars .track { height: 10px; background: var(--l0); border-radius: 3px; overflow: hidden; }
+  .bars .fill { height: 100%; background: var(--fg); }
+  .bars .v { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .books { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  .books th { text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line);
+    padding: 6px 8px; white-space: nowrap; cursor: pointer; user-select: none; }
+  .books th[aria-sort]::after { content: " ↓"; }
+  .books th[aria-sort="ascending"]::after { content: " ↑"; }
+  .books td { border-bottom: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
+  .books td.d { white-space: nowrap; }
+  .books td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .books td:first-child { min-width: 170px; }
+  .books .title { font-weight: 600; }
+  .books .author { color: var(--muted); }
+  .table { overflow-x: auto; }
+  .empty { color: var(--muted); font-size: 0.88rem; }
+
+  .notes { margin: 14px 0 0; padding-left: 18px; color: var(--muted); font-size: 0.82rem; }
+  .notes li { margin: 3px 0; }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 700px) { .split { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="site">
+  <header class="top">
+    <a class="mark" href="./"><span></span>CrossInk extras</a>
+    <nav><a href="./">Install firmware</a> · <a href="optimizer.html">EPUB Optimizer</a> · <a href="files.html">File Manager</a> · <a href="stats.html" aria-current="page">Reading Stats</a> · <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.4.0">v1.4.0 on GitHub</a></nav>
+  </header>
+</div>
+<div class="wrap">
+  <div class="card">
+    <div class="bar">
+      <button class="go" type="button" id="connect">Connect reader</button>
+      <label class="tool">Open backup…<input type="file" id="openBackup" accept=".json,application/json"></label>
+      <span id="status">Plug the reader in by USB and leave it on its Home screen.</span>
+      <span class="spacer"></span>
+      <button class="tool" type="button" id="saveBackup" disabled>Download backup</button>
+      <button class="tool" type="button" id="saveCsv" disabled>Download CSV</button>
+      <label class="tool" id="restoreLabel">Restore from backup…<input type="file" id="restoreFile" accept=".json,application/json"></label>
+    </div>
+    <div id="source"></div>
+    <div class="panel" id="restorePanel" hidden></div>
+  </div>
+
+  <div id="dashboard" hidden>
+    <div class="card"><div class="tiles" id="tiles"></div></div>
+    <div class="card">
+      <h2>Reading days</h2>
+      <div class="heat" id="heat"></div>
+      <div class="legend">Less <i style="background:var(--l0)"></i><i style="background:var(--l1)"></i><i style="background:var(--l2)"></i><i style="background:var(--l3)"></i> More
+        <span class="spacer"></span><span id="heatNote"></span></div>
+    </div>
+    <div class="card split">
+      <div><h2>Time of day</h2><div class="bars" id="timeOfDay"></div></div>
+      <div><h2>Day of week</h2><div class="bars" id="dayOfWeek"></div></div>
+    </div>
+    <div class="card">
+      <h2>Books</h2>
+      <div class="table"><table class="books" id="books"></table></div>
+    </div>
+  </div>
+
+  <ul class="notes">
+    <li>Needs CrossInk extras 1.4.0 or newer, Chrome or Edge, and the reader on its Home screen.</li>
+    <li>A backup is a readable JSON file of all your stats. Restoring replaces the reader's stats with it; books are
+      matched by their path, so keep them in the same folders. The page saves a backup of the current stats first,
+      and the reader restarts when it's done.</li>
+    <li>Shades show minutes read for the last 27 weeks; older reading days are marked in the lightest shade.</li>
+  </ul>
+</div>
+
+<script src="usb-send.js?v=4"></script>
+<script src="stats-ui.js?v=1"></script>
+</body>
+</html>

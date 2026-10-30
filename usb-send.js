@@ -45,6 +45,7 @@
 
   function friendlyError(message) {
     if (/ERR:not_on_home/.test(message)) return "Open the Home screen on your reader, then try again.";
+    if (/ERR:unknown_cmd/.test(message)) return "This reader's firmware is too old for this. Install CrossInk extras 1.4.0 or newer.";
     if (/ERR:protected_path/.test(message)) return "That folder can't be written to. Choose another folder.";
     return message;
   }
@@ -287,6 +288,17 @@
     return data;
   };
 
+  // Collects the reader's "STATS:{json}" lines until "END" (stats commands).
+  Link.prototype.statsRecords = async function (letter, payload, what) {
+    await this.command(letter, payload);
+    var records = [];
+    for (;;) {
+      var line = await this.waitLine(function (l) { return l === "END" || l.indexOf("STATS:") === 0; }, 30000, what);
+      if (line === "END") return records;
+      if (line !== "STATS:none") records.push(JSON.parse(line.slice(6)));
+    }
+  };
+
   Link.prototype.sendFile = async function (path, bytes, onProgress) {
     await this.command("W", this.pathPayload(path).concat(le32(bytes.length)));
     await this.waitLine(function (l) { return l === "READY"; }, 10000, "start");
@@ -446,5 +458,45 @@
     },
   };
 
-  window.UsbSend = { send: send, listBooks: listBooks, replace: replace, files: files, supported: "serial" in navigator };
+  // Reading stats (firmware 1.4.0+): decoded by the reader, as JSON records.
+  var IMPORT_PATH = "/crossink-stats-import.jsonl";
+  var stats = {
+    // {meta, global, daily}
+    global: function () {
+      return queued(async function (l) {
+        await l.status();
+        var out = {};
+        (await l.statsRecords("G", [], "stats")).forEach(function (r) { out[r.type] = r; });
+        if (!out.meta) throw new Error("This reader's firmware can't share its stats. Install CrossInk extras 1.4.0 or newer.");
+        return out;
+      });
+    },
+    // The book's record, or null when it has no stats.
+    book: function (path) {
+      return queued(async function (l) {
+        var records = await l.statsRecords("B", l.pathPayload(card(path)), "book stats");
+        return records[0] || null;
+      });
+    },
+    // Uploads a JSON Lines backup and restores it; the reader restarts after.
+    restore: function (jsonl, onProgress) {
+      return queued(async function (l) {
+        await l.status();
+        await writeBook(l, card(IMPORT_PATH), new TextEncoder().encode(jsonl), onProgress);
+        await l.command("I", l.pathPayload(card(IMPORT_PATH)));
+        var line = await l.waitLine(function (r) { return r.indexOf("OK:") === 0; }, 120000, "restore");
+        var result = {};
+        line.slice(3).split(",").forEach(function (pair) {
+          var kv = pair.split("=");
+          result[kv[0]] = Number(kv[1]);
+        });
+        await l.close();  // The reader restarts now
+        link = null;
+        return result;
+      });
+    },
+  };
+
+  window.UsbSend = { send: send, listBooks: listBooks, replace: replace, files: files, stats: stats,
+    supported: "serial" in navigator };
 })();
