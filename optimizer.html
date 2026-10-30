@@ -25,10 +25,14 @@
   a { color: inherit; text-underline-offset: 3px; }
   .wrap { max-width: 720px; margin: 0 auto; padding: 0 16px 32px; }
 
-  header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-    padding: 18px 0 14px; font-size: 0.88rem; color: var(--muted); }
-  header h1 { margin: 0; font-size: 1.15rem; font-weight: 650; color: var(--fg); }
-  header h1 a { text-decoration: none; color: var(--muted); font-weight: 500; }
+  header.top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 16px;
+    padding: 22px 0; font-size: 0.92rem; line-height: 1.6; color: var(--muted); }
+  header.top .mark { font-weight: 600; color: var(--fg); letter-spacing: 0.01em; text-decoration: none; }
+  header.top .mark span { display: inline-block; width: 10px; height: 10px; background: var(--fg);
+    margin-right: 8px; border-radius: 2px; vertical-align: 0; }
+  header.top nav a { color: var(--muted); }
+  header.top nav a[aria-current="page"] { color: var(--fg); text-decoration: none; }
+  .site { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
 
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
@@ -96,11 +100,13 @@
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1><a href="./">CrossInk extras</a> / EPUB Optimizer</h1>
-    <a href="./">Install firmware</a>
+<div class="site">
+  <header class="top">
+    <a class="mark" href="./"><span></span>CrossInk extras</a>
+    <nav><a href="./">Install firmware</a> · <a href="optimizer.html" aria-current="page">EPUB Optimizer</a> · <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.3.0">v1.3.0 on GitHub</a></nav>
   </header>
+</div>
+<div class="wrap">
 
   <div class="card">
     <div class="row">
