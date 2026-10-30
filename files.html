@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>File Manager</title>
+<meta name="description" content="Browse and organize the books on your CrossInk reader over USB: folders, rename, move, upload, download and delete.">
+<style>
+  :root {
+    --bg: #f6f5f1; --fg: #161614; --muted: #62625c; --faint: #8c8c85;
+    --card: #ffffff; --line: #dcdbd4;
+    --btn: #161614; --btn-fg: #f6f5f1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121211; --fg: #ecebe6; --muted: #a5a49d; --faint: #75746e;
+      --card: #1b1b19; --line: #2f2f2b;
+      --btn: #ecebe6; --btn-fg: #121211;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  a { color: inherit; text-underline-offset: 3px; }
+  .site { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px 32px; }
+  header.top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 16px;
+    padding: 22px 0; font-size: 0.92rem; line-height: 1.6; color: var(--muted); }
+  header.top .mark { font-weight: 600; color: var(--fg); letter-spacing: 0.01em; text-decoration: none; }
+  header.top .mark span { display: inline-block; width: 10px; height: 10px; background: var(--fg);
+    margin-right: 8px; border-radius: 2px; vertical-align: 0; }
+  header.top nav a { color: var(--muted); }
+  header.top nav a[aria-current="page"] { color: var(--fg); text-decoration: none; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+  .bar + .bar, .bar + .files { margin-top: 12px; }
+  .spacer { flex: 1; }
+  button.go { background: var(--btn); color: var(--btn-fg); border: 0; border-radius: 9px; padding: 8px 16px;
+    font: inherit; font-weight: 600; cursor: pointer; }
+  button.go:disabled { opacity: 0.4; cursor: not-allowed; }
+  .muted, #device { color: var(--muted); font-size: 0.88rem; }
+  .bad { color: var(--fg) !important; border-left: 2px solid var(--fg); padding-left: 8px; }
+  .tool, .act { font: inherit; font-size: 0.84rem; line-height: 1.4; white-space: nowrap; padding: 4px 10px;
+    border: 1px solid var(--fg); border-radius: 7px; background: transparent; color: var(--fg); cursor: pointer; }
+  .tool:hover, .act:hover { background: var(--bg); }
+  .act { border-color: transparent; color: var(--muted); padding: 2px 6px; }
+  .act:hover { color: var(--fg); border-color: var(--line); }
+  .act.primary { background: var(--btn); color: var(--btn-fg); border-color: var(--btn); }
+  .act.danger { color: var(--fg); border-color: var(--fg); }
+  label.tool input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+  .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; }
+  .crumbs button { font: inherit; font-size: 0.9rem; border: 1px solid transparent; background: transparent;
+    color: var(--muted); padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+  .crumbs button[aria-current] { color: var(--fg); font-weight: 600; }
+  .crumbs button:hover, .crumbs button.over { border-color: var(--fg); color: var(--fg); }
+  .crumbs .sep { color: var(--faint); }
+
+  .selbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px;
+    background: var(--bg); font-size: 0.86rem; }
+  .selbar[hidden] { display: none; }
+  #selActions { display: inline-flex; align-items: center; gap: 6px; }
+
+  .files { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  .files li { border-bottom: 1px solid var(--line); }
+  .row { display: grid; grid-template-columns: 18px 20px minmax(0, 1fr) auto auto; align-items: center; gap: 4px 10px;
+    padding: 6px 4px; font-size: 0.9rem; }
+  .row input[type="checkbox"] { accent-color: var(--fg); margin: 0; }
+  .row .icon { display: inline-flex; width: 18px; height: 18px; color: var(--muted); }
+  .row .icon svg { width: 100%; height: 100%; }
+  .row .name { overflow-wrap: anywhere; text-align: left; }
+  .row button.name { font: inherit; border: 0; background: transparent; color: var(--fg); padding: 0; cursor: pointer;
+    font-weight: 600; }
+  .row button.name:hover { text-decoration: underline; }
+  .row .size { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .row .acts { display: inline-flex; gap: 2px; align-items: center; }
+  .row .confirm { font-size: 0.82rem; margin-right: 4px; }
+  .row.over { outline: 2px solid var(--fg); outline-offset: -2px; border-radius: 6px; }
+  .row .panel, .selbar .panel { grid-column: 3 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .panel[hidden] { display: none !important; }
+  .panel select { flex: 1; min-width: 180px; font: inherit; font-size: 0.84rem; padding: 3px 6px;
+    border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--fg); }
+  input.rename { font: inherit; font-size: 0.9rem; padding: 2px 6px; border: 1px solid var(--fg); border-radius: 6px;
+    background: var(--bg); color: var(--fg); min-width: 0; width: 100%; }
+  .empty { padding: 18px 4px; color: var(--muted); font-size: 0.88rem; text-align: center; }
+  #msg { margin-top: 10px; font-size: 0.86rem; color: var(--muted); min-height: 1.3em; }
+  .busy .files, .busy .bar button, .busy .bar label { opacity: 0.55; pointer-events: none; }
+  .dropping .files { outline: 2px dashed var(--fg); outline-offset: 4px; border-radius: 6px; }
+
+  .notes { margin: 14px 0 0; padding-left: 18px; color: var(--muted); font-size: 0.82rem; }
+  .notes li { margin: 3px 0; }
+
+  @media (max-width: 560px) {
+    .row { grid-template-columns: 18px 20px minmax(0, 1fr) auto; }
+    .row .acts { grid-column: 3 / -1; flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="site">
+  <header class="top">
+    <a class="mark" href="./"><span></span>CrossInk extras</a>
+    <nav><a href="./">Install firmware</a> · <a href="optimizer.html">EPUB Optimizer</a> · <a href="files.html" aria-current="page">File Manager</a> · <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.3.0">v1.3.0 on GitHub</a></nav>
+  </header>
+</div>
+<div class="wrap">
+  <div class="card">
+    <div class="bar">
+      <button class="go" type="button" id="connect">Connect reader</button>
+      <span id="device">Plug the reader in by USB and leave it on its Home screen.</span>
+    </div>
+
+    <div id="browser" hidden>
+      <div class="bar">
+        <nav class="crumbs" id="crumbs" aria-label="Folder"></nav>
+        <span class="spacer"></span>
+        <button class="tool" type="button" id="selectAll">Select all</button>
+        <button class="tool" type="button" id="newFolder">New folder</button>
+        <label class="tool">Upload<input type="file" id="upload" multiple></label>
+        <button class="tool" type="button" id="refresh">Refresh</button>
+      </div>
+      <div class="bar selbar" id="selbar" hidden>
+        <span id="selCount"></span>
+        <span id="selActions">
+          <button class="act" type="button" id="selMove">Move to…</button>
+          <button class="act" type="button" id="selDelete">Delete</button>
+        </span>
+        <div class="panel" id="selPanel" hidden></div>
+      </div>
+      <ul class="files" id="files"></ul>
+      <div id="msg" role="status"></div>
+    </div>
+  </div>
+
+  <ul class="notes">
+    <li>Works in Chrome or Edge. The reader only accepts changes while it's on its Home screen.</li>
+    <li>Drag items onto a folder or a folder name in the path to move them; drop files from your computer to upload.</li>
+    <li>Moving or renaming a book keeps its reading stats (firmware v1.3.0+). Deleting a book doesn't delete its stats.</li>
+    <li>Uploading a file with the same name as one already there replaces it and keeps that book's stats.</li>
+  </ul>
+</div>
+
+<script src="usb-send.js?v=3"></script>
+<script src="files-ui.js?v=1"></script>
+</body>
+</html>

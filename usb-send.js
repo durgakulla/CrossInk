@@ -49,10 +49,13 @@
     return message;
   }
 
-  // An open serial port with a byte queue fed by a background reader.
+  // An open serial port with a byte queue fed by a background reader. The
+  // queue holds the received chunks and an offset into the first, so large
+  // reads don't shift arrays byte by byte.
   function Link(port) {
     this.port = port;
-    this.queue = [];
+    this.chunks = [];
+    this.offset = 0;
     this.waiters = [];
     this.closed = false;
     this.pump();
@@ -64,11 +67,10 @@
       for (;;) {
         var result = await this.reader.read();
         if (result.done) break;
-        for (var i = 0; i < result.value.length; i++) {
-          var waiter = this.waiters.shift();
-          if (waiter) waiter(result.value[i]);
-          else this.queue.push(result.value[i]);
-        }
+        var chunk = result.value;
+        var i = 0;
+        while (i < chunk.length && this.waiters.length) this.waiters.shift()(chunk[i++]);
+        if (i < chunk.length) this.chunks.push(i ? chunk.subarray(i) : chunk);
       }
     } catch (e) {
       // Port closed or unplugged
@@ -79,8 +81,50 @@
     }
   };
 
+  Link.prototype.takeQueued = function () {
+    var first = this.chunks[0];
+    var byte = first[this.offset++];
+    if (this.offset >= first.length) {
+      this.chunks.shift();
+      this.offset = 0;
+    }
+    return byte;
+  };
+
+  Link.prototype.drain = function () {
+    this.chunks = [];
+    this.offset = 0;
+  };
+
+  // Reads exactly n bytes, waiting up to idleMs for each gap in the data.
+  Link.prototype.readBytes = async function (n, idleMs, onProgress) {
+    var out = new Uint8Array(n);
+    var filled = 0;
+    var lastReport = 0;
+    while (filled < n) {
+      if (this.chunks.length) {
+        var first = this.chunks[0];
+        var count = Math.min(n - filled, first.length - this.offset);
+        out.set(first.subarray(this.offset, this.offset + count), filled);
+        filled += count;
+        this.offset += count;
+        if (this.offset >= first.length) {
+          this.chunks.shift();
+          this.offset = 0;
+        }
+      } else {
+        out[filled++] = await this.readByte(idleMs);
+      }
+      if (onProgress && filled - lastReport >= 16384) {
+        lastReport = filled;
+        onProgress(filled / n);
+      }
+    }
+    return out;
+  };
+
   Link.prototype.readByte = function (timeoutMs) {
-    if (this.queue.length) return Promise.resolve(this.queue.shift());
+    if (this.chunks.length) return Promise.resolve(this.takeQueued());
     if (this.closed) return Promise.reject(new Error("The reader was disconnected."));
     var self = this;
     return new Promise(function (resolve, reject) {
@@ -175,7 +219,7 @@
   };
 
   Link.prototype.status = async function () {
-    this.queue.length = 0;  // Drop log output from before this command
+    this.drain();  // Drop log output from before this command
     await this.command("S");
     var line = await this.waitLine(function (l) { return l.indexOf("STATUS:") === 0; }, 3000, "status");
     var info = {};
@@ -213,6 +257,34 @@
         entries.push({ folder: false, name: parts.slice(1, -2).join("|"), size: Number(parts[parts.length - 2]) });
       }
     }
+  };
+
+  Link.prototype.remove = async function (path) {
+    await this.command("R", this.pathPayload(path));
+    await this.waitLine(function (l) { return l === "OK"; }, 120000, "delete");
+  };
+
+  Link.prototype.rename = async function (from, to) {
+    await this.command("N", this.pathPayload(from).concat(this.pathPayload(to)));
+    await this.waitLine(function (l) { return l === "OK"; }, 30000, "rename");
+  };
+
+  Link.prototype.mkdir = async function (path) {
+    await this.command("K", this.pathPayload(path));
+    await this.waitLine(function (l) { return l === "OK"; }, 5000, "create folder");
+  };
+
+  // "CMND" + 'T' + path -> "READY", u32 size, the bytes, u32 CRC-32.
+  Link.prototype.readFile = async function (path, onProgress) {
+    await this.command("T", this.pathPayload(path));
+    await this.waitLine(function (l) { return l === "READY"; }, 10000, "start download");
+    var sizeBytes = await this.readBytes(4, 10000);
+    var size = (sizeBytes[0] | (sizeBytes[1] << 8) | (sizeBytes[2] << 16) | (sizeBytes[3] << 24)) >>> 0;
+    var data = await this.readBytes(size, 10000, onProgress);
+    var crcBytes = await this.readBytes(4, 10000);
+    var crc = (crcBytes[0] | (crcBytes[1] << 8) | (crcBytes[2] << 16) | (crcBytes[3] << 24)) >>> 0;
+    if (crc !== crc32(data)) throw new Error("ERR:crc: the download was damaged");
+    return data;
   };
 
   Link.prototype.sendFile = async function (path, bytes, onProgress) {
@@ -346,5 +418,33 @@
     });
   }
 
-  window.UsbSend = { send: send, listBooks: listBooks, replace: replace, supported: "serial" in navigator };
+  // File manager operations on paths relative to the card's root ("/Books/a.epub").
+  function card(path) { return "/sdcard" + (path === "/" ? "" : path); }
+  var files = {
+    status: function () { return queued(function (l) { return l.status(); }); },
+    list: function (path) {
+      return queued(async function (l) { await l.status(); return l.list(card(path)); });
+    },
+    mkdir: function (path) { return queued(function (l) { return l.mkdir(card(path)); }); },
+    remove: function (path) { return queued(function (l) { return l.remove(card(path)); }); },
+    rename: function (from, to) { return queued(function (l) { return l.rename(card(from), card(to)); }); },
+    read: function (path, onProgress) {
+      return queued(async function (l) {
+        try {
+          return await l.readFile(card(path), onProgress);
+        } catch (e) {
+          if (!/crc/i.test(e.message)) throw e;
+          l.drain();
+          return l.readFile(card(path), onProgress);  // Log output can corrupt a read; try once more
+        }
+      });
+    },
+    write: function (path, blob, onProgress) {
+      return queued(async function (l) {
+        await writeBook(l, card(path), new Uint8Array(await blob.arrayBuffer()), onProgress);
+      });
+    },
+  };
+
+  window.UsbSend = { send: send, listBooks: listBooks, replace: replace, files: files, supported: "serial" in navigator };
 })();
