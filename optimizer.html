@@ -84,6 +84,24 @@
   .queue a.dl:hover { background: var(--bg); }
   .queue .bad { border-left: 2px solid var(--fg); padding-left: 10px; color: var(--fg); }
 
+  details.marks { margin-top: 10px; font-size: 0.88rem; }
+  details.marks summary { cursor: pointer; color: var(--muted); }
+  details.marks summary:hover { color: var(--fg); }
+  .marks-help { color: var(--muted); margin: 8px 0; font-size: 0.84rem; }
+  .markbar { position: relative; height: 9px; border: 1px solid var(--fg); border-radius: 2px; margin: 10px 0; }
+  .markbar i { position: absolute; top: 1px; bottom: 1px; width: 1px; background: var(--fg); }
+  .toc-list { max-height: 260px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .toc-row { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; cursor: pointer; }
+  .toc-row input { accent-color: var(--fg); flex: none; }
+  .toc-row input:disabled + .toc-title { color: var(--faint); }
+  .toc-title { flex: 1; overflow-wrap: anywhere; }
+  .toc-pos { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.8rem; }
+  .marks-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+  .marks-actions button { font: inherit; font-size: 0.85rem; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--fg); background: transparent; color: var(--fg); }
+  .marks-actions button.primary { background: var(--btn); color: var(--btn-fg); }
+  .marks-actions button:disabled { opacity: 0.35; cursor: not-allowed; }
+
   section { padding: 48px 0; border-top: 1px solid var(--line); }
   section h2 { font-size: clamp(1.7rem, 3.4vw, 2.2rem); margin: 0 0 14px; }
   ul.notes { list-style: none; margin: 0; padding: 0; max-width: 46em; }
@@ -154,7 +172,7 @@
       <button class="go" type="button" id="start" disabled>Optimize</button>
       <ul class="queue" id="queue"></ul>
       <p class="fine">Books are read and converted on this computer. Each optimized book downloads with its original
-        name.</p>
+        name. Open <em>Chapter marks</em> under a book to choose where the progress-bar chapter marks go.</p>
     </div>
   </div>
 
@@ -166,6 +184,8 @@
       <li><strong>Replacing a book on your reader?</strong> Upload it through CrossInk's web portal, or use
         <em>Delete Book Cache</em> in the book's menu after copying it over. Otherwise the reader keeps using the old
         copy's layout. Your position and stats are kept either way.</li>
+      <li><strong>Chapter marks</strong> you choose are saved inside the book and need the CrossInk extras v1.3.0
+        firmware or newer. Other readers and older firmware ignore them and pick marks automatically.</li>
       <li><strong>Protected books</strong> (DRM) can't be optimized.</li>
       <li>Built on the optimizer from <a href="https://github.com/uxjulia/CrossInk">CrossInk</a>'s web portal (MIT
         License), unchanged, with the character repair added before it runs.</li>
@@ -184,6 +204,7 @@
 
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/crossink-files.js?v=1"></script>
-<script src="optimizer.js?v=1"></script>
+<script src="chapter-marks.js?v=1"></script>
+<script src="optimizer.js?v=2"></script>
 </body>
 </html>

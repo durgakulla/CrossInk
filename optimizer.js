@@ -125,7 +125,11 @@
       link.download = item.file.name;
       link.textContent = "Download";
       li.appendChild(link);
-      link.click();
+      try {
+        await ChapterMarks.attach(li, blob, link);
+      } catch (e) {
+        console.error("Chapter marks editor unavailable:", e);
+      }
     } catch (e) {
       bar.remove();
       setState(item, "Failed");
