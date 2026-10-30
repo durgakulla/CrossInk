@@ -309,6 +309,7 @@
       li.querySelector(".remove").addEventListener("click", function () { removeItem(item); });
       pending.push(item);
       showCover(item);
+      item.inspection = inspect(item);
     });
     start.disabled = busy || pending.length === 0;
   }
@@ -386,8 +387,6 @@
 
       bar.remove();
       setState(item, "Done");
-      var detail = document.createElement("div");
-      detail.className = "detail";
       var parts = [];
       if (pages) parts.push(pages + " stable pages");
       if (splits) parts.push("long chapters split into " + splits + " extra pieces");
@@ -397,30 +396,7 @@
           (prep.fontBytes ? " (" + formatBytes(prep.fontBytes) + ")" : ""));
       }
       parts.push(formatBytes(item.file.size) + " → " + formatBytes(blob.size));
-      detail.textContent = parts.join(" · ");
-      li.appendChild(detail);
-
-      var link = document.createElement("a");
-      link.className = "dl";
-      link.href = URL.createObjectURL(blob);
-      var name = await outputName(item.file);
-      if (name !== item.file.name) li.querySelector(".name").textContent = name;
-      link.download = name;
-      link.textContent = "Download";
-      // Chapter marks, then Download and Send to reader below them.
-      var actions = document.createElement("div");
-      actions.className = "actions";
-      li.appendChild(actions);
-      try {
-        await ChapterMarks.attach(actions, blob, link);
-      } catch (e) {
-        console.error("Chapter marks editor unavailable:", e);
-      }
-      var buttons = document.createElement("div");
-      buttons.className = "buttons";
-      buttons.appendChild(link);
-      if (UsbSend.supported) buttons.appendChild(sendButton(link));
-      actions.appendChild(buttons);
+      await showResult(item, blob, parts, false);
     } catch (e) {
       bar.remove();
       if (item.removed) return;  // Cancelled from the list
@@ -429,6 +405,94 @@
       error.className = "detail bad";
       error.textContent = (e && e.message) || String(e);
       li.appendChild(error);
+    }
+  }
+
+  // A finished book's summary, chapter-mark editor, Download and Send to
+  // reader. An already-optimized book also gets "Optimize again".
+  async function showResult(item, blob, parts, alreadyOptimized) {
+    var li = item.body;
+    var detail = document.createElement("div");
+    detail.className = "detail";
+    detail.textContent = parts.join(" · ");
+    li.appendChild(detail);
+
+    var link = document.createElement("a");
+    link.className = "dl";
+    link.href = URL.createObjectURL(blob);
+    var name = await outputName(item.file);
+    if (name !== item.file.name) li.querySelector(".name").textContent = name;
+    link.download = name;
+    link.textContent = "Download";
+    // Chapter marks, then the buttons below them.
+    var actions = document.createElement("div");
+    actions.className = "actions";
+    li.appendChild(actions);
+    try {
+      await ChapterMarks.attach(actions, blob, link);
+    } catch (e) {
+      console.error("Chapter marks editor unavailable:", e);
+    }
+    var buttons = document.createElement("div");
+    buttons.className = "buttons";
+    buttons.appendChild(link);
+    if (UsbSend.supported) buttons.appendChild(sendButton(link));
+    if (alreadyOptimized) {
+      var again = document.createElement("button");
+      again.type = "button";
+      again.className = "dl";
+      again.textContent = "Optimize again";
+      again.addEventListener("click", function () { requeue(item); });
+      buttons.appendChild(again);
+    }
+    actions.appendChild(buttons);
+  }
+
+  // Puts a book back in the batch, clearing its results.
+  function requeue(item) {
+    Array.prototype.forEach.call(item.li.querySelectorAll("a.dl"), function (a) { URL.revokeObjectURL(a.href); });
+    Array.prototype.slice.call(item.body.children, 1).forEach(function (el) { el.remove(); });
+    item.body.querySelector(".name").textContent = item.file.name;
+    setState(item, "Ready");
+    pending.push(item);
+    start.disabled = busy;
+  }
+
+  // True when a book's text has double-encoded characters ("â€™").
+  async function hasGarbledText(zip) {
+    var names = Object.keys(zip.files).filter(function (n) { return !zip.files[n].dir && /\.x?html?$/i.test(n); });
+    for (var i = 0; i < names.length; i++) {
+      var text = await zip.file(names[i]).async("string");
+      var pattern = new RegExp(MOJIBAKE.source, "g");
+      var m;
+      while ((m = pattern.exec(text))) {
+        if (unmangle(m[0]) !== m[0]) return true;
+      }
+    }
+    return false;
+  }
+
+  // A book that is already optimized (it carries the optimizer's manifest,
+  // written by CrossInk's optimizer and by Inky) skips conversion and goes
+  // straight to its chapter marks, Download and Send to reader.
+  async function inspect(item) {
+    try {
+      var zip = await JSZip.loadAsync(item.file);
+      if (!zip.file("META-INF/crossink/optimizer-v1.json")) return;
+      var index = pending.indexOf(item);
+      if (index < 0 || item.removed) return;  // Already being converted, or gone
+      pending.splice(index, 1);
+      start.disabled = busy || pending.length === 0;
+      setState(item, "Already optimized");
+      var locations = zip.file("META-INF/x-locations.json");
+      var pages = locations ? JSON.parse(await locations.async("string")).totalReferencePages : 0;
+      var parts = [];
+      if (pages) parts.push(pages + " stable pages");
+      if (await hasGarbledText(zip)) parts.push("garbled characters found: Optimize again to repair them");
+      parts.push(formatBytes(item.file.size));
+      await showResult(item, item.file, parts, true);
+    } catch (e) {
+      console.warn("Could not inspect " + item.file.name + ":", e);  // Treated as a normal book
     }
   }
 
@@ -442,6 +506,8 @@
     usedNames = new Set();  // Names only need to be unique within a batch
     JPEG_QUALITY = parseInt(quality.value, 10);
     ENABLE_GRAYSCALE = grayscale.checked;
+    // Let detection finish so already-optimized books aren't converted again.
+    await Promise.all(pending.map(function (item) { return item.inspection; }));
     while (pending.length) await optimize(pending.shift());
     operationCancelled = false;
     busy = false;
