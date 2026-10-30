@@ -2,6 +2,8 @@
 // firmware's serial file-transfer protocol (src/network/UsbSerialFileTransfer.cpp):
 //   "CMND" + 'S'                                  -> "STATUS:protocol=1,device=..."
 //   "CMND" + 'K' + u16 path length + path         -> "OK" | "ERR:..."
+//   "CMND" + 'A' + u16 path length + path         -> "DIR:path", "d|name" /
+//     "f|name|size|0" lines, "END"
 //   "CMND" + 'W' + u16 path length + path + u32 size -> "READY", then 256-byte
 //     chunks each answered by ACK (0x06), then a CRC-32 -> "OK" | "ERR:..."
 // The reader only accepts transfers on its Home screen. Text lines from its
@@ -194,6 +196,25 @@
     }
   };
 
+  // Lists a folder as [{folder, name, size}].
+  Link.prototype.list = async function (path) {
+    await this.command("A", this.pathPayload(path));
+    var entries = [];
+    var started = false;
+    var deadline = Date.now() + 10000;
+    for (;;) {
+      var line = await this.waitLine(function () { return true; }, Math.max(1, deadline - Date.now()), "list " + path);
+      if (line.indexOf("DIR:") === 0) { started = true; continue; }
+      if (line === "END") return entries;
+      if (!started) continue;
+      var parts = line.split("|");
+      if (parts[0] === "d" && parts.length >= 2) entries.push({ folder: true, name: parts.slice(1).join("|") });
+      else if (parts[0] === "f" && parts.length >= 4) {
+        entries.push({ folder: false, name: parts.slice(1, -2).join("|"), size: Number(parts[parts.length - 2]) });
+      }
+    }
+  };
+
   Link.prototype.sendFile = async function (path, bytes, onProgress) {
     await this.command("W", this.pathPayload(path).concat(le32(bytes.length)));
     await this.waitLine(function (l) { return l === "READY"; }, 10000, "start");
@@ -247,23 +268,13 @@
     return parts.join("/");
   }
 
-  // Sends one book. Operations run one at a time on the shared port.
-  function send(blob, fileName, folder, onProgress) {
+  // Runs fn(link) after any earlier operation, one at a time on the shared
+  // port; drops the connection if the reader stopped answering.
+  function queued(fn) {
     var run = busy.then(async function () {
-      var dir = cleanFolder(folder);
-      var bytes = new Uint8Array(await blob.arrayBuffer());
       var l = await connect();
       try {
-        var info = await l.status();
-        if (dir) await l.mkdirs(dir);
-        var path = "/sdcard/" + (dir ? dir + "/" : "") + fileName;
-        try {
-          await l.sendFile(path, bytes, onProgress);
-        } catch (e) {
-          if (!/^ERR:crc|crc/i.test(e.message)) throw e;
-          await l.sendFile(path, bytes, onProgress);  // One retry after a checksum mismatch
-        }
-        return { path: "/" + (dir ? dir + "/" : "") + fileName, device: info.device || "", firmware: info.firmware || "" };
+        return await fn(l);
       } catch (e) {
         if (l.closed || /didn't answer|stopped answering|disconnected/.test(e.message)) {
           await l.close();
@@ -276,5 +287,64 @@
     return run;
   }
 
-  window.UsbSend = { send: send, supported: "serial" in navigator };
+  async function writeBook(l, path, bytes, onProgress) {
+    try {
+      await l.sendFile(path, bytes, onProgress);
+    } catch (e) {
+      if (!/crc/i.test(e.message)) throw e;
+      await l.sendFile(path, bytes, onProgress);  // One retry after a checksum mismatch
+    }
+  }
+
+  // Sends one book into folder (relative to the card's root).
+  function send(blob, fileName, folder, onProgress) {
+    return queued(async function (l) {
+      var dir = cleanFolder(folder);
+      var bytes = new Uint8Array(await blob.arrayBuffer());
+      var info = await l.status();
+      if (dir) await l.mkdirs(dir);
+      await writeBook(l, "/sdcard/" + (dir ? dir + "/" : "") + fileName, bytes, onProgress);
+      return { path: "/" + (dir ? dir + "/" : "") + fileName, device: info.device || "", firmware: info.firmware || "" };
+    });
+  }
+
+  // Every EPUB on the reader's card, as [{path, name, size}], searching up to
+  // MAX_DEPTH folders deep and MAX_FOLDERS folders in all.
+  var MAX_DEPTH = 6;
+  var MAX_FOLDERS = 300;
+  function listBooks() {
+    return queued(async function (l) {
+      await l.status();
+      var books = [];
+      var folders = [{ path: "", depth: 0 }];
+      var visited = 0;
+      while (folders.length && visited < MAX_FOLDERS) {
+        var folder = folders.shift();
+        visited++;
+        var entries = await l.list("/sdcard" + (folder.path ? "/" + folder.path : ""));
+        entries.forEach(function (entry) {
+          var path = (folder.path ? folder.path + "/" : "") + entry.name;
+          if (entry.folder) {
+            if (folder.depth + 1 <= MAX_DEPTH) folders.push({ path: path, depth: folder.depth + 1 });
+          } else if (/\.epub$/i.test(entry.name)) {
+            books.push({ path: "/" + path, name: entry.name, size: entry.size });
+          }
+        });
+      }
+      return books;
+    });
+  }
+
+  // Overwrites the book at path (from listBooks), keeping its name, so the
+  // reader keeps its reading stats, position and settings.
+  function replace(blob, path, onProgress) {
+    return queued(async function (l) {
+      var bytes = new Uint8Array(await blob.arrayBuffer());
+      await l.status();
+      await writeBook(l, "/sdcard" + path, bytes, onProgress);
+      return { path: path };
+    });
+  }
+
+  window.UsbSend = { send: send, listBooks: listBooks, replace: replace, supported: "serial" in navigator };
 })();

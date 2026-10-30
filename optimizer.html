@@ -82,12 +82,18 @@
   .queue .actions { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 6px; }
   .queue .actions details.marks { align-self: stretch; }
   .queue .buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .queue .send { display: inline-flex; align-items: center; gap: 8px; }
+  .queue .send { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
   .queue button.dl { font-family: inherit; background: transparent; color: var(--fg); cursor: pointer; }
   .queue button.dl:disabled { opacity: 0.4; cursor: wait; }
   .queue .send-status { color: var(--muted); font-size: 0.82rem; }
+  .queue .replace-wrap { display: contents; }
+  .queue .replace { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .queue .replace[hidden] { display: none; }
+  .queue .replace select { flex: 1; min-width: 200px; max-width: 100%; font: inherit; font-size: 0.84rem;
+    padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--fg); }
+  .queue button.dl.primary { background: var(--btn); color: var(--btn-fg); }
   .queue .send-status.bad { color: var(--fg); border-left: 2px solid var(--fg); padding-left: 8px; }
-  .queue .dl { display: inline-block; border: 1px solid var(--fg); border-radius: 7px;
+  .queue .dl { display: inline-block; white-space: nowrap; line-height: 1.4; border: 1px solid var(--fg); border-radius: 7px;
     padding: 4px 10px; font-weight: 600; text-decoration: none; font-size: 0.84rem; }
   .queue .dl:hover { background: var(--bg); }
   .queue .bad { border-left: 2px solid var(--fg); padding-left: 8px; color: var(--fg); }
@@ -168,7 +174,8 @@
     <li><strong>Chapter marks</strong> (under each book) set where the progress bars mark chapters; needs firmware
       v1.3.0+.</li>
     <li><strong>Send to reader</strong> works over USB in Chrome or Edge: plug the reader in and leave it on its Home
-      screen. It replaces a book with the same name and clears its old layout; your position and stats are kept.</li>
+      screen. <strong>Replace on reader</strong> writes over a book already there, keeping its file name so the reader
+      keeps its reading stats; your place may shift if the chapters were split differently.</li>
     <li>Copying books another way? After replacing one, use <em>Delete Book Cache</em> in its menu.</li>
     <li>Start from the original book when you can. DRM-protected books can't be optimized.</li>
     <li>Uses <a href="https://github.com/uxjulia/CrossInk">CrossInk</a>'s web-portal optimizer (MIT).
@@ -183,7 +190,7 @@
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/crossink-files.js?v=1"></script>
 <script src="chapter-marks.js?v=2"></script>
-<script src="usb-send.js?v=1"></script>
-<script src="optimizer.js?v=12"></script>
+<script src="usb-send.js?v=2"></script>
+<script src="optimizer.js?v=13"></script>
 </body>
 </html>

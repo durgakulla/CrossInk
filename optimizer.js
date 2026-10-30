@@ -292,6 +292,119 @@
     return wrap;
   }
 
+  // Words for matching a book to file names: lower case, no accents or
+  // punctuation, without filler words.
+  var FILLER = new Set(["the", "a", "an", "of", "and", "epub", "by", "le", "la", "el"]);
+  function words(text) {
+    return (text || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ").split(" ").filter(function (w) { return w && !FILLER.has(w); });
+  }
+
+  // How well a file name on the reader matches the book: mostly its title's
+  // words, then its author's.
+  function matchScore(fileName, meta) {
+    var have = new Set(words(fileName.replace(/\.epub$/i, "")));
+    var share = function (list) {
+      return list.length ? list.filter(function (w) { return have.has(w); }).length / list.length : 0;
+    };
+    var title = share(words(meta.title));
+    return { title: title, score: title * 0.75 + share(words(meta.author)) * 0.25 };
+  }
+
+  // "Replace on reader…": lists the reader's books, suggests the one that
+  // matches this book, and writes over it keeping its file name, so the
+  // reader keeps that book's reading stats, position and settings.
+  function replaceButton(link, item) {
+    var wrap = document.createElement("span");
+    wrap.className = "send";
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "dl";
+    button.textContent = "Replace on reader…";
+    var status = document.createElement("span");
+    status.className = "send-status";
+    status.setAttribute("role", "status");
+    var panel = document.createElement("div");
+    panel.className = "replace";
+    panel.hidden = true;
+
+    function fail(e) {
+      status.classList.add("bad");
+      status.textContent = e && e.name === "NotFoundError" ? "No reader picked." : (e && e.message) || String(e);
+    }
+
+    button.addEventListener("click", async function () {
+      button.disabled = true;
+      panel.hidden = true;
+      status.classList.remove("bad");
+      status.textContent = "Reading the reader's books…";
+      try {
+        var books = await UsbSend.listBooks();
+        if (!books.length) throw new Error("No EPUBs found on the reader.");
+        var meta = (await readTitleAuthor(item.file)) || { title: "", author: "" };
+        books.forEach(function (b) { b.match = matchScore(b.name, meta); });
+        books.sort(function (a, b) { return b.match.score - a.match.score || a.path.localeCompare(b.path); });
+        var best = books[0].match.title >= 0.6 ? books[0] : null;
+
+        panel.textContent = "";
+        var select = document.createElement("select");
+        var prompt = document.createElement("option");
+        prompt.value = "";
+        prompt.textContent = best ? "Choose the book to replace" : "No clear match: choose the book to replace";
+        select.appendChild(prompt);
+        books.forEach(function (b) {
+          var option = document.createElement("option");
+          option.value = b.path;
+          option.textContent = b.path + (b === best ? "  (best match)" : "");
+          select.appendChild(option);
+        });
+        select.value = best ? best.path : "";
+        var go = document.createElement("button");
+        go.type = "button";
+        go.className = "dl primary";
+        go.textContent = "Replace";
+        go.disabled = !select.value;
+        select.addEventListener("change", function () { go.disabled = !select.value; });
+        var cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.className = "dl";
+        cancel.textContent = "Cancel";
+        cancel.addEventListener("click", function () { panel.hidden = true; status.textContent = ""; });
+        go.addEventListener("click", async function () {
+          go.disabled = select.disabled = true;
+          status.classList.remove("bad");
+          try {
+            var blob = await (await fetch(link.href)).blob();
+            var result = await UsbSend.replace(blob, select.value, function (fraction) {
+              status.textContent = "Replacing " + Math.round(fraction * 100) + "%";
+            });
+            panel.hidden = true;
+            status.textContent = "Replaced " + result.path + "; its reading stats were kept";
+          } catch (e) {
+            fail(e);
+            go.disabled = select.disabled = false;
+          }
+        });
+        panel.appendChild(select);
+        panel.appendChild(go);
+        panel.appendChild(cancel);
+        panel.hidden = false;
+        status.textContent = books.length + " book" + (books.length === 1 ? "" : "s") + " on the reader";
+      } catch (e) {
+        fail(e);
+      } finally {
+        button.disabled = false;
+      }
+    });
+    wrap.appendChild(button);
+    wrap.appendChild(status);
+    var whole = document.createElement("span");
+    whole.className = "replace-wrap";
+    whole.appendChild(wrap);
+    whole.appendChild(panel);
+    return whole;
+  }
+
   function formatBytes(bytes) {
     return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB" : Math.round(bytes / 1024) + " KB";
   }
@@ -436,7 +549,10 @@
     var buttons = document.createElement("div");
     buttons.className = "buttons";
     buttons.appendChild(link);
-    if (UsbSend.supported) buttons.appendChild(sendButton(link));
+    if (UsbSend.supported) {
+      buttons.appendChild(sendButton(link));
+      buttons.appendChild(replaceButton(link, item));
+    }
     if (alreadyOptimized) {
       var again = document.createElement("button");
       again.type = "button";
