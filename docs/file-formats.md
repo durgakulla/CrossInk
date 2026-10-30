@@ -991,6 +991,38 @@ if (parsedSize != fileSize) {
 }
 ```
 
+## `META-INF/crossink/chapter-marks.json` (inside the EPUB)
+
+Optional. Lists the chapter starts that get a mark on the detailed progress bar
+(Reading Heatmap sleep screen and Minimal Carousel), as chosen in an EPUB
+optimizer's chapter-mark editor. Without it, the firmware marks one TOC level:
+the shallowest with 5 to 50 entries, otherwise the shallowest with at least two.
+
+```json
+{
+  "format": "crossink-chapter-marks",
+  "version": 1,
+  "marks": [
+    {"href": "OEBPS/Text/chapter1.xhtml", "anchor": "", "title": "The First Night"},
+    {"href": "OEBPS/Text/chapter4.xhtml", "anchor": "part-2", "title": "Part Two"}
+  ]
+}
+```
+
+- `href` is the chapter file's path inside the zip; it is matched to a spine item
+  by full path, then by file name. Marks whose file is not in the spine are skipped.
+- `anchor` (may be empty) is an element `id` in that file where the chapter
+  starts; the firmware finds it by scanning the file.
+- `title` is for people reading the file and is ignored.
+- Marks may be in any order. An empty `marks` array means no marks. A file with
+  another `format` or `version`, invalid JSON, or larger than 16 KB is ignored,
+  and the automatic choice is used. At most 64 marks are read.
+
+The result is cached per book in `epub_<hash>/chapter_ticks.bin` (see
+[data-cache.md](data-cache.md)): a version byte (currently 2), a count byte, and
+that many little-endian `uint16` positions in thousandths of the book. A cache
+with another version is recomputed.
+
 ## Optimizer image transport (PXC2 and COIX)
 
 Optimizer images are optional EPUB sidecars. Original JPEG/PNG assets remain the

@@ -8,6 +8,7 @@
 
 ### Changed
 
+- Chapter marks on the Reading Heatmap and Minimal Carousel progress bars now use the table-of-contents level with a sensible number of entries (5 to 50), so books divided into a few parts mark their chapters instead of only the parts. Books can also carry their own chapter marks, chosen in the EPUB optimizer's chapter-mark editor and saved as `META-INF/crossink/chapter-marks.json`.
 - Lyra Carousel and Minimal Carousel: the reading progress under the cover now shows the estimated time left at the top right of the progress line, and the percentage read centred below the line.
 - On the Xteink X3 in portrait, the top status bar sits 2px higher so its progress line meets the top bezel without a gap.
 

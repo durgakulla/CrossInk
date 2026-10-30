@@ -1,5 +1,6 @@
 #include "BookProgressDetails.h"
 
+#include <ArduinoJson.h>
 #include <Epub.h>
 #include <FsHelpers.h>
 #include <HalStorage.h>
@@ -18,8 +19,17 @@ namespace {
 
 constexpr size_t kMaxChapters = std::tuple_size<decltype(BookProgressDetails::chapterTicks)>::value;
 constexpr size_t kMaxAnchorLength = 48;
-constexpr uint8_t kTickCacheVersion = 1;
+// 2: level chosen by mark count, and chapter-marks.json sidecars.
+constexpr uint8_t kTickCacheVersion = 2;
 constexpr char kTickCacheFile[] = "/chapter_ticks.bin";
+// Optional list of chapter starts chosen in the EPUB optimizer's editor.
+constexpr char kChapterMarksPath[] = "META-INF/crossink/chapter-marks.json";
+constexpr char kChapterMarksFormat[] = "crossink-chapter-marks";
+constexpr size_t kChapterMarksMaxBytes = 16 * 1024;
+// A TOC level marks the bar's chapters when it has this many entries; fewer
+// is usually a book's parts, more crowds the bar.
+constexpr uint8_t kMinAutoMarks = 5;
+constexpr uint8_t kMaxAutoMarks = 50;
 
 struct ChapterEntry {
   int16_t spineIndex = -1;
@@ -133,33 +143,102 @@ void writeCachedTicks(const std::string& cachePath, const BookProgressDetails& b
   file.close();
 }
 
-// Where each chapter starts, in thousandths of the book. Chapters are one TOC
-// level: the shallowest with at least two entries, so a book whose contents
-// sit under a single title entry still gets its chapters; nested sections
-// would crowd the bar. A chapter that starts partway through a file (a TOC
+// The TOC level whose entries mark the bar: the shallowest with a comfortable
+// number of entries (kMinAutoMarks to kMaxAutoMarks), so a book split into a
+// few parts still marks its chapters. Otherwise the shallowest level with at
+// least two entries, so a book whose contents sit under a single title entry
+// still gets its chapters.
+uint8_t chooseChapterLevel(const Epub& epub) {
+  constexpr uint8_t kMaxCountedLevel = 8;
+  std::array<uint8_t, kMaxCountedLevel> levelCounts{};
+  const int tocCount = epub.getTocItemsCount();
+  for (int i = 0; i < tocCount; ++i) {
+    const uint8_t level = epub.getTocItem(i).level;
+    if (level < kMaxCountedLevel && levelCounts[level] < UINT8_MAX) ++levelCounts[level];
+  }
+  uint8_t shallowest = UINT8_MAX;
+  uint8_t shallowestPair = UINT8_MAX;
+  for (uint8_t level = 0; level < kMaxCountedLevel; ++level) {
+    const uint8_t count = levelCounts[level];
+    if (count == 0) continue;
+    if (count >= kMinAutoMarks && count <= kMaxAutoMarks) return level;
+    if (shallowest == UINT8_MAX) shallowest = level;
+    if (count >= 2 && shallowestPair == UINT8_MAX) shallowestPair = level;
+  }
+  return shallowestPair != UINT8_MAX ? shallowestPair : shallowest;
+}
+
+void setAnchor(ChapterEntry& entry, const char* anchor, const size_t length) {
+  if (length < kMaxAnchorLength) {
+    std::memcpy(entry.anchor, anchor, length);
+    entry.anchor[length] = '\0';
+  }
+}
+
+size_t autoChapterEntries(const Epub& epub, std::array<ChapterEntry, kMaxChapters>& entries) {
+  const uint8_t chapterLevel = chooseChapterLevel(epub);
+  size_t count = 0;
+  const int tocCount = epub.getTocItemsCount();
+  for (int i = 0; i < tocCount && count < kMaxChapters; ++i) {
+    const auto item = epub.getTocItem(i);
+    if (item.level != chapterLevel || item.spineIndex < 0) continue;
+    ChapterEntry& entry = entries[count++];
+    entry.spineIndex = item.spineIndex;
+    setAnchor(entry, item.anchor.c_str(), item.anchor.size());
+  }
+  return count;
+}
+
+// Reads the chapter starts chosen in the EPUB optimizer, when the book has
+// them: {"format": "crossink-chapter-marks", "version": 1, "marks": [{"href":
+// "OEBPS/Text/ch1.xhtml", "anchor": "part2"}, ...]}. Returns false when there
+// is no valid list, so the automatic choice is used; an empty list is valid
+// and means no marks.
+bool readChapterMarks(const Epub& epub, std::array<ChapterEntry, kMaxChapters>& entries, size_t& count) {
+  count = 0;
+  size_t size = 0;
+  if (!epub.getItemSize(kChapterMarksPath, &size)) return false;
+  if (size == 0 || size > kChapterMarksMaxBytes) {
+    LOG_ERR("BPD", "Ignoring chapter marks with unsupported size: %zu bytes", size);
+    return false;
+  }
+  size_t bytesRead = 0;
+  // readItemContentsToBytes returns malloc'd memory, freed below.
+  uint8_t* data = epub.readItemContentsToBytes(kChapterMarksPath, &bytesRead, true);
+  if (!data) {
+    LOG_ERR("BPD", "Failed to read chapter marks");
+    return false;
+  }
+  JsonDocument doc;
+  const DeserializationError err = deserializeJson(doc, reinterpret_cast<const char*>(data), bytesRead);
+  free(data);
+  if (err || std::strcmp(doc["format"] | "", kChapterMarksFormat) != 0 || (doc["version"] | 0) != 1 ||
+      !doc["marks"].is<JsonArrayConst>()) {
+    LOG_ERR("BPD", "Ignoring invalid chapter marks");
+    return false;
+  }
+  for (JsonObjectConst mark : doc["marks"].as<JsonArrayConst>()) {
+    if (count >= kMaxChapters) break;
+    const char* href = mark["href"] | "";
+    const int spineIndex = epub.resolveHrefToSpineIndex(href);
+    if (spineIndex < 0) continue;  // A file that is no longer in the book
+    ChapterEntry& entry = entries[count++];
+    entry.spineIndex = static_cast<int16_t>(spineIndex);
+    const char* anchor = mark["anchor"] | "";
+    setAnchor(entry, anchor, std::strlen(anchor));
+  }
+  return true;
+}
+
+// Where each chapter starts, in thousandths of the book: the starts chosen in
+// the EPUB optimizer when the book has them, otherwise one TOC level (see
+// chooseChapterLevel). A chapter that starts partway through a file (an
 // anchor) is found by scanning that file once. The result is cached in the
 // book's cache folder; a scan that fails (e.g. too little memory to inflate
 // the file) falls back to the file's start and is retried next time.
 void loadChapterTicks(const Epub& epub, BookProgressDetails& book) {
   const std::string& cachePath = epub.getCachePath();
   if (readCachedTicks(cachePath, book)) return;
-
-  const int tocCount = epub.getTocItemsCount();
-  constexpr uint8_t kMaxCountedLevel = 8;
-  std::array<uint8_t, kMaxCountedLevel> levelCounts{};
-  for (int i = 0; i < tocCount; ++i) {
-    const uint8_t level = epub.getTocItem(i).level;
-    if (level < kMaxCountedLevel && levelCounts[level] < UINT8_MAX) ++levelCounts[level];
-  }
-  uint8_t chapterLevel = UINT8_MAX;
-  for (uint8_t level = 0; level < kMaxCountedLevel; ++level) {
-    if (levelCounts[level] == 0) continue;
-    if (chapterLevel == UINT8_MAX) chapterLevel = level;  // Fallback: the shallowest level present
-    if (levelCounts[level] >= 2) {
-      chapterLevel = level;
-      break;
-    }
-  }
 
   // 64 entries with their anchors are ~3 KB, too much for the stack.
   auto entries = makeUniqueNoThrow<std::array<ChapterEntry, kMaxChapters>>();
@@ -168,15 +247,12 @@ void loadChapterTicks(const Epub& epub, BookProgressDetails& book) {
     return;
   }
   size_t entryCount = 0;
-  for (int i = 0; i < tocCount && entryCount < kMaxChapters; ++i) {
-    const auto item = epub.getTocItem(i);
-    if (item.level != chapterLevel || item.spineIndex < 0) continue;
-    ChapterEntry& entry = (*entries)[entryCount++];
-    entry.spineIndex = item.spineIndex;
-    if (item.anchor.size() < kMaxAnchorLength) {
-      std::memcpy(entry.anchor, item.anchor.c_str(), item.anchor.size() + 1);
-    }
+  if (!readChapterMarks(epub, *entries, entryCount)) {
+    entryCount = autoChapterEntries(epub, *entries);
   }
+  // Group each file's chapters together for the scan below.
+  std::stable_sort(entries->begin(), entries->begin() + entryCount,
+                   [](const ChapterEntry& a, const ChapterEntry& b) { return a.spineIndex < b.spineIndex; });
 
   // Scan each file holding anchored chapters once, for all of its anchors.
   bool complete = true;
@@ -206,11 +282,17 @@ void loadChapterTicks(const Epub& epub, BookProgressDetails& book) {
     first = last;
   }
 
-  // Ticks too close to the previous one are dropped.
-  int lastPermille = 0;
+  // In book order; ticks too close to the previous one are dropped.
+  std::array<uint16_t, kMaxChapters> permilles{};
   for (size_t i = 0; i < entryCount; ++i) {
     const ChapterEntry& entry = (*entries)[i];
-    const int permille = static_cast<int>(epub.calculateProgress(entry.spineIndex, entry.spineRead) * 1000.0f + 0.5f);
+    permilles[i] = static_cast<uint16_t>(
+        std::min(1000.0f, epub.calculateProgress(entry.spineIndex, entry.spineRead) * 1000.0f + 0.5f));
+  }
+  std::sort(permilles.begin(), permilles.begin() + entryCount);
+  int lastPermille = 0;
+  for (size_t i = 0; i < entryCount; ++i) {
+    const int permille = permilles[i];
     if (permille - lastPermille < kBookProgressMinChapterTickPermille || permille >= 1000) continue;
     book.chapterTicks[book.chapterTickCount++] = static_cast<uint16_t>(permille);
     lastPermille = permille;
