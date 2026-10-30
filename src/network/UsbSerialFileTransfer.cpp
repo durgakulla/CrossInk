@@ -18,6 +18,7 @@
 #include "CrossPointSettings.h"
 #include "activities/boot_sleep/ImageFolderIndex.h"
 #include "util/BookCacheUtils.h"
+#include "util/BookMoveUtils.h"
 
 #if defined(FREEINK_DEVICE_X4PRO) && FREEINK_DEVICE_X4PRO && !ARDUINO_USB_MODE && !defined(SIMULATOR)
 #define CROSSINK_USB_RX_OVERFLOW_ENABLED
@@ -629,6 +630,44 @@ void handleRename() {
   char parent[PATH_BUFFER_SIZE];
   if (!parentPath(dst, parent, sizeof(parent)) || isProtectedPath(parent) || !storageExistsOrRoot(parent)) {
     writeLine("ERR:invalid_path\n");
+    return;
+  }
+
+  bool directory = false;
+  if (!isDirectory(src, directory)) {
+    writeLine("ERR:not_found\n");
+    return;
+  }
+
+  // Files move with their reader state (reading stats, position, settings,
+  // recents), like the web portal's rename, so books can be renamed or moved
+  // between folders without losing their stats. Folders are renamed as they
+  // are; a host that wants to keep the stats of the books inside moves them
+  // one by one.
+  if (!directory) {
+    const auto migration = BookMoveUtils::renameFilePreservingBookState(src, dst);
+    if (migration == BookMoveUtils::RenameMigrationResult::InvalidBookType) {
+      writeLine("ERR:book_type\n");
+      return;
+    }
+    if (migration == BookMoveUtils::RenameMigrationResult::DestinationStateExists) {
+      writeLine("ERR:target_state_exists\n");
+      return;
+    }
+    if (migration == BookMoveUtils::RenameMigrationResult::RolledBack) {
+      LOG_ERR("USB", "Failed to rename file while preserving reader state: %s -> %s", src, dst);
+      writeLine("ERR:rename_failed\n");
+      return;
+    }
+    library::invalidateLibraryIndex();
+    ImageFolderIndex::invalidateForPath(src);
+    sdFontSystem.markRegistryDirtyForPath(src);
+    ImageFolderIndex::invalidateForPath(dst);
+    sdFontSystem.markRegistryDirtyForPath(dst);
+    if (migration == BookMoveUtils::RenameMigrationResult::KeepRenamed) {
+      LOG_ERR("USB", "Rename kept new path after incomplete state rollback: %s", dst);
+    }
+    writeLine("OK\n");
     return;
   }
 

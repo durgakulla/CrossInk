@@ -2,6 +2,7 @@
 PlatformIO pre-build script: inject git info into version defines.
 
   default:       1.1.0-dev+<branch>  (local development builds)
+  extras:        1.1.0-extras 1.3.0  (when [crossink] extras_version is set)
   production:    1.1.0               (when $CROSSINK_RELEASE_VERSION is set)
   RC:            1.1.0-<hash>-RC      (when $CROSSINK_RC_HASH is set)
   test & debug:          1.2.6-<branch>+<5-char-hash>
@@ -127,6 +128,13 @@ def get_crossink_version(project_dir):
     return config.get('crossink', 'version')
 
 
+def get_extras_version(project_dir):
+    config = _read_ini(project_dir)
+    if not config.has_option('crossink', 'extras_version'):
+        return None
+    return sanitize_version_component(config.get('crossink', 'extras_version'))
+
+
 def get_release_candidate_version(project_dir):
     short_hash = os.environ.get('CROSSINK_RC_HASH') or get_git_short_hash(project_dir)
     base_version = re.sub(r'-RC$', '', get_crossink_version(project_dir), flags=re.IGNORECASE)
@@ -143,6 +151,13 @@ def get_production_version(project_dir):
 def get_hardware_version(project_dir, pioenv):
     if os.environ.get('CROSSINK_RC_HASH'):
         return get_release_candidate_version(project_dir)
+
+    # CrossInk extras builds name both versions, e.g. "1.6.1-extras 1.3.0".
+    # Over-the-air update checks read only the leading "1.6.1".
+    extras_version = get_extras_version(project_dir)
+    if extras_version:
+        device_suffix = {'default': '', 'sticky': '-sticky', 'x4-pro': '-x4-pro', 'x4-classic': '-x4-classic'}[pioenv]
+        return f'{get_crossink_version(project_dir)}{device_suffix}-extras {extras_version}'
 
     if pioenv == 'default':
         if os.environ.get('CROSSINK_RELEASE_VERSION'):

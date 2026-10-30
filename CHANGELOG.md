@@ -8,12 +8,14 @@
 
 ### Changed
 
+- CrossInk extras firmware reports its version as both releases, e.g. "1.6.1-extras 1.3.0", on the boot screen, the update screen and the web portal, instead of a development build name. Over-the-air update checks still compare only the CrossInk version.
 - Chapter marks on the Reading Heatmap and Minimal Carousel progress bars now use the table-of-contents level with a sensible number of entries (5 to 50), so books divided into a few parts mark their chapters instead of only the parts. Books can also carry their own chapter marks, chosen in the EPUB optimizer's chapter-mark editor and saved as `META-INF/crossink/chapter-marks.json`.
 - Lyra Carousel and Minimal Carousel: the reading progress under the cover now shows the estimated time left at the top right of the progress line, and the percentage read centred below the line.
 - On the Xteink X3 in portrait, the top status bar sits 2px higher so its progress line meets the top bezel without a gap.
 
 ### Fixed
 
+- Renaming or moving a book over USB (CrossInk's serial file transfer, used by Inky and the CrossInk extras File Manager) now keeps its reading stats, position, settings and Recents entry, like renaming it in the web portal. Previously its saved reading data stayed behind under the old path.
 - Chapter marks on the Reading Heatmap progress bar now appear for books whose chapters share a file (common in Project Gutenberg EPUBs) or sit under a single title entry in the table of contents. Each book's marks are worked out once and saved in its cache.
 - The current and longest reading streaks no longer count days dated after today, which could happen after the clock or time zone was changed. They now match the days shown on the Reading Heatmap.
 - Fixed a crash and restart when turning the page with a button shortcut (for example a side or power button set to Page Turn) on the end-of-book screen. These shortcuts now behave like the page buttons there: next goes home and previous returns to the last page.
