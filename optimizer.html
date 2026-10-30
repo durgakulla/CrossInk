@@ -46,6 +46,8 @@
   .opt input[type="range"] { width: 90px; }
   .opt input[type="number"] { width: 72px; font: inherit; padding: 2px 6px; border: 1px solid var(--line);
     border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .opt select { font: inherit; font-size: 0.84rem; padding: 2px 4px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--fg); }
   .muted { color: var(--muted); }
 
   .drop { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: 200px;
@@ -123,6 +125,12 @@
       <label class="opt">Quality
         <input type="range" id="qualityOption" min="40" max="95" step="5" value="85">
         <span id="qualityValue" class="muted">85%</span></label>
+      <label class="opt">File name
+        <select id="nameOption">
+          <option value="keep">Keep</option>
+          <option value="title-author">Title - Author</option>
+          <option value="author-title">Author - Title</option>
+        </select></label>
       <label class="opt">Chars/page
         <input type="number" id="referenceCharactersInput" min="200" max="10000" step="100" value="1500"></label>
     </div>
@@ -154,6 +162,6 @@
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/crossink-files.js?v=1"></script>
 <script src="chapter-marks.js?v=2"></script>
-<script src="optimizer.js?v=4"></script>
+<script src="optimizer.js?v=6"></script>
 </body>
 </html>

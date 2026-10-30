@@ -23,6 +23,7 @@
   var grayscale = document.getElementById("grayscaleOption");
   var repairToggle = document.getElementById("repairToggle");
   var removeFontsToggle = document.getElementById("removeFontsToggle");
+  var nameOption = document.getElementById("nameOption");
   var pending = [];
   var busy = false;
 
@@ -207,6 +208,55 @@
     ctx.putImageData(image, 0, 0);
   }
 
+  // The book's title and first author from its metadata, using the
+  // converter's own helpers. An author stored as "Last, First" becomes
+  // "First Last".
+  async function readTitleAuthor(file) {
+    var zip = await JSZip.loadAsync(file);
+    var opfPath = await findOPFPath(zip);
+    if (!opfPath) return null;
+    var doc = new DOMParser().parseFromString(await safeReadText(zip.files[opfPath]), "application/xml");
+    if (doc.querySelector("parsererror")) return null;
+    var titleEl = doc.getElementsByTagNameNS("*", "title")[0];
+    var creators = Array.prototype.slice.call(doc.getElementsByTagNameNS("*", "creator"));
+    var role = function (el) {
+      return (el.getAttribute("role") || el.getAttribute("opf:role") ||
+        el.getAttributeNS("http://www.idpf.org/2007/opf", "role") || "").toLowerCase();
+    };
+    var authorEl = creators.filter(function (el) { return role(el) === "aut"; })[0] ||
+      creators.filter(function (el) { return !role(el); })[0];
+    var author = authorEl ? authorEl.textContent.trim() : "";
+    var lastFirst = /^([^,]+),\s*([^,]+)$/.exec(author);
+    if (lastFirst) author = lastFirst[2] + " " + lastFirst[1];
+    return {
+      title: sanitizeMetadataFilenamePart(titleEl ? titleEl.textContent : ""),
+      author: sanitizeMetadataFilenamePart(author),
+    };
+  }
+
+  // "Title - Author.epub" or "Author - Title.epub"; the original name when
+  // the book has no title. Names are made unique within this batch.
+  var usedNames = new Set();
+  async function outputName(file) {
+    var order = nameOption.value;
+    var name = file.name;
+    if (order !== "keep") {
+      try {
+        var meta = await readTitleAuthor(file);
+        if (meta && meta.title) {
+          var parts = !meta.author ? [meta.title]
+            : order === "author-title" ? [meta.author, meta.title] : [meta.title, meta.author];
+          var base = parts.join(" - ");
+          if (base.length > 180) base = base.substring(0, 180).replace(/\s+\S*$/, "").trim();
+          name = base + ".epub";
+        }
+      } catch (e) {
+        console.warn("Could not read the book's title and author:", e);
+      }
+    }
+    return reserveAvailableUploadFilename(name, usedNames);
+  }
+
   function formatBytes(bytes) {
     return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB" : Math.round(bytes / 1024) + " KB";
   }
@@ -268,7 +318,9 @@
       var link = document.createElement("a");
       link.className = "dl";
       link.href = URL.createObjectURL(blob);
-      link.download = item.file.name;
+      var name = await outputName(item.file);
+      if (name !== item.file.name) li.querySelector(".name").textContent = name;
+      link.download = name;
       link.textContent = "Download";
       li.appendChild(link);
       try {
@@ -293,6 +345,7 @@
     // The converter's own startup may restore its defaults, so apply this
     // page's choices right before converting.
     selectDevice(deviceButtons.filter(function (b) { return b.getAttribute("aria-pressed") === "true"; })[0]);
+    usedNames = new Set();  // Names only need to be unique within a batch
     JPEG_QUALITY = parseInt(quality.value, 10);
     ENABLE_GRAYSCALE = grayscale.checked;
     while (pending.length) await optimize(pending.shift());
