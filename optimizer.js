@@ -24,6 +24,7 @@
   var repairToggle = document.getElementById("repairToggle");
   var removeFontsToggle = document.getElementById("removeFontsToggle");
   var nameOption = document.getElementById("nameOption");
+  var usbFolder = document.getElementById("usbFolder");
   var pending = [];
   var busy = false;
 
@@ -257,6 +258,40 @@
     return reserveAvailableUploadFilename(name, usedNames);
   }
 
+  // "Send to reader": sends the same file Download would (custom chapter
+  // marks included) to the reader over USB.
+  function sendButton(link) {
+    var wrap = document.createElement("span");
+    wrap.className = "send";
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "dl";
+    button.textContent = "Send to reader";
+    var status = document.createElement("span");
+    status.className = "send-status";
+    status.setAttribute("role", "status");
+    button.addEventListener("click", async function () {
+      button.disabled = true;
+      status.classList.remove("bad");
+      status.textContent = "Connecting…";
+      try {
+        var blob = await (await fetch(link.href)).blob();
+        var result = await UsbSend.send(blob, link.download, usbFolder.value, function (fraction) {
+          status.textContent = "Sending " + Math.round(fraction * 100) + "%";
+        });
+        status.textContent = "Sent to " + result.path;
+      } catch (e) {
+        status.classList.add("bad");
+        status.textContent = e && e.name === "NotFoundError" ? "No reader picked." : (e && e.message) || String(e);
+      } finally {
+        button.disabled = false;
+      }
+    });
+    wrap.appendChild(button);
+    wrap.appendChild(status);
+    return wrap;
+  }
+
   function formatBytes(bytes) {
     return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB" : Math.round(bytes / 1024) + " KB";
   }
@@ -372,7 +407,7 @@
       if (name !== item.file.name) li.querySelector(".name").textContent = name;
       link.download = name;
       link.textContent = "Download";
-      // Chapter marks, then Download below them.
+      // Chapter marks, then Download and Send to reader below them.
       var actions = document.createElement("div");
       actions.className = "actions";
       li.appendChild(actions);
@@ -381,7 +416,11 @@
       } catch (e) {
         console.error("Chapter marks editor unavailable:", e);
       }
-      actions.appendChild(link);
+      var buttons = document.createElement("div");
+      buttons.className = "buttons";
+      buttons.appendChild(link);
+      if (UsbSend.supported) buttons.appendChild(sendButton(link));
+      actions.appendChild(buttons);
     } catch (e) {
       bar.remove();
       if (item.removed) return;  // Cancelled from the list

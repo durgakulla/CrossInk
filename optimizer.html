@@ -44,6 +44,8 @@
   .opt { display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; cursor: pointer; white-space: nowrap; }
   .opt input { accent-color: var(--fg); margin: 0; }
   .opt input[type="range"] { width: 90px; }
+  .opt input[type="text"] { width: 90px; font: inherit; padding: 2px 6px; border: 1px solid var(--line);
+    border-radius: 6px; background: var(--bg); color: var(--fg); }
   .opt input[type="number"] { width: 72px; font: inherit; padding: 2px 6px; border: 1px solid var(--line);
     border-radius: 6px; background: var(--bg); color: var(--fg); }
   .opt select { font: inherit; font-size: 0.84rem; padding: 2px 4px; border: 1px solid var(--line); border-radius: 6px;
@@ -79,9 +81,15 @@
   .queue progress { width: 100%; height: 5px; margin-top: 6px; accent-color: var(--fg); }
   .queue .actions { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 6px; }
   .queue .actions details.marks { align-self: stretch; }
-  .queue a.dl { display: inline-block; border: 1px solid var(--fg); border-radius: 7px;
+  .queue .buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .queue .send { display: inline-flex; align-items: center; gap: 8px; }
+  .queue button.dl { font-family: inherit; background: transparent; color: var(--fg); cursor: pointer; }
+  .queue button.dl:disabled { opacity: 0.4; cursor: wait; }
+  .queue .send-status { color: var(--muted); font-size: 0.82rem; }
+  .queue .send-status.bad { color: var(--fg); border-left: 2px solid var(--fg); padding-left: 8px; }
+  .queue .dl { display: inline-block; border: 1px solid var(--fg); border-radius: 7px;
     padding: 4px 10px; font-weight: 600; text-decoration: none; font-size: 0.84rem; }
-  .queue a.dl:hover { background: var(--bg); }
+  .queue .dl:hover { background: var(--bg); }
   .queue .bad { border-left: 2px solid var(--fg); padding-left: 8px; color: var(--fg); }
 
   details.marks { font-size: 0.85rem; }
@@ -141,6 +149,8 @@
           <option value="author-title">Author - Title</option>
           <option value="keep">Keep original</option>
         </select></label>
+      <label class="opt">Reader folder
+        <input type="text" id="usbFolder" value="/" spellcheck="false"></label>
       <label class="opt">Chars/page
         <input type="number" id="referenceCharactersInput" min="200" max="10000" step="100" value="1500"></label>
     </div>
@@ -157,8 +167,9 @@
   <ul class="notes">
     <li><strong>Chapter marks</strong> (under each book) set where the progress bars mark chapters; needs firmware
       v1.3.0+.</li>
-    <li>Replacing a book on the reader? Use <em>Delete Book Cache</em> in its menu after copying, or upload through
-      CrossInk's web portal.</li>
+    <li><strong>Send to reader</strong> works over USB in Chrome or Edge: plug the reader in and leave it on its Home
+      screen. It replaces a book with the same name and clears its old layout; your position and stats are kept.</li>
+    <li>Copying books another way? After replacing one, use <em>Delete Book Cache</em> in its menu.</li>
     <li>Start from the original book when you can. DRM-protected books can't be optimized.</li>
     <li>Uses <a href="https://github.com/uxjulia/CrossInk">CrossInk</a>'s web-portal optimizer (MIT).
       <a href="https://github.com/durgakulla/CrossInk/tree/feat/reading-heatmap-sleep">Source</a></li>
@@ -172,6 +183,7 @@
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/crossink-files.js?v=1"></script>
 <script src="chapter-marks.js?v=2"></script>
-<script src="optimizer.js?v=10"></script>
+<script src="usb-send.js?v=1"></script>
+<script src="optimizer.js?v=11"></script>
 </body>
 </html>
