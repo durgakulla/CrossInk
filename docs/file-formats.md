@@ -1170,3 +1170,46 @@ the card to the host. Manage Fonts performs a full rescan; alternatively remove
 this cache to force reinspection after external same-length font changes.
 
 EPUB layout cache versions and identities are unchanged by this catalog.
+
+## Reading stats export (`crossink-stats`, version 1)
+
+Reading stats can be read and restored over CrossInk's USB serial file
+transfer (`src/network/StatsTransfer.cpp`), so a computer can show them, export
+them and back them up without parsing the binary stats files. Records are JSON
+objects, one per line, decoded from and saved through the same loaders and
+savers the reader uses. Like the other transfer commands, these work only while
+the reader is on its Home screen.
+
+Commands (`CMND` + letter; paths as in the other commands):
+
+- `G`: replies with the `meta`, `global` and `daily` records, each on a line
+  prefixed `STATS:`, then `END`.
+- `B` + book path: replies with that book's `book` record prefixed `STATS:`, or
+  `STATS:none` when it has no stats (none recorded, tracking off, or not an EPUB
+  or XTC book), then `END`.
+- `I` + file path: restores a JSON Lines file of these records (without the
+  `STATS:` prefix, `meta` first) that the host uploaded with `W`. The whole
+  file is checked before anything is saved, so an invalid file changes
+  nothing. Replies `OK:global=<0|1>,daily=<0|1>,books=<n>,skipped=<n>` or
+  `ERR:import:<reason>`, deletes the file, and on success restarts the reader so
+  stats held in memory don't overwrite the restored ones. Books are matched by
+  path; records for books not on the card are counted as `skipped`.
+
+Records (`type` field):
+
+- `meta`: `format` (`"crossink-stats"`), `version` (`1`), and on export
+  `firmware`, `device`, `today` (`YYYY-MM-DD`, absent without a set clock) and
+  `todayIndex` (days since 2000-01-01).
+- `global`: `sessions`, `seconds`, `pages`, `completedBooks`, `timeOfDay[4]`
+  and `dayOfWeek[7]` (seconds, Monday first), `historyAnchor` (day index),
+  `history` (the 92-byte reading-day bitmap as hex; bit `n`, lowest bit of each
+  byte first, means a reading day `n` days before `historyAnchor`),
+  `longestStreakRecord`, and on export the displayed `currentStreak` and
+  `longestStreak`.
+- `daily`: `anchorDay` (day index) and `seconds[189]`, where slot `k` is the
+  seconds read on day `anchorDay - k`.
+- `book`: `path`, `sessions`, `seconds`, `pages`, `completed`,
+  `avgSecondsPerPage`, `paceSamples`, `timeLeftSeconds`, `startDateManual`,
+  `finishedDateManual`, `startDate` and `finishedDate` (`YYYY-MM-DD` or null),
+  `timeOfDay[4]`, `dayOfWeek[7]`, and on export `title`, `author` and `progress`
+  (percent or null), which are ignored on import.

@@ -16,6 +16,8 @@
 #include <string>
 
 #include "CrossPointSettings.h"
+#include "SilentRestart.h"
+#include "StatsTransfer.h"
 #include "activities/boot_sleep/ImageFolderIndex.h"
 #include "util/BookCacheUtils.h"
 #include "util/BookMoveUtils.h"
@@ -734,6 +736,43 @@ void handleRead() {
   writeLe32(crc);
 }
 
+// Reading stats as JSON lines ("STATS:{...}"), then "END" (see StatsTransfer).
+void handleStatsGlobal() {
+  if (!ensureFileTransferAllowed()) return;
+  StatsTransfer::writeGlobalStats(logSerial);
+  writeLine("END\n");
+}
+
+void handleStatsBook() {
+  char path[PATH_BUFFER_SIZE];
+  if (!readNormalizedPath(path, sizeof(path))) return;
+  if (!ensureFileTransferAllowed()) return;
+  if (!StatsTransfer::writeBookStats(path, logSerial)) writeLine("STATS:none\n");
+  writeLine("END\n");
+}
+
+// Restores a stats backup the host uploaded to path (deleted afterwards),
+// then restarts so no stats held in memory overwrite the restored files.
+void handleStatsImport() {
+  char path[PATH_BUFFER_SIZE];
+  if (!readNormalizedPath(path, sizeof(path))) return;
+  if (!ensureFileTransferAllowed()) return;
+  if (isProtectedPath(path) || !Storage.exists(path)) {
+    writeLine("ERR:not_found\n");
+    return;
+  }
+  const StatsTransfer::ImportResult result = StatsTransfer::importStatsFile(path);
+  if (!result.ok) {
+    logSerial.printf("ERR:import:%s\n", result.error);
+    return;
+  }
+  logSerial.printf("OK:global=%u,daily=%u,books=%u,skipped=%u\n", result.global ? 1u : 0u, result.daily ? 1u : 0u,
+                   static_cast<unsigned>(result.books), static_cast<unsigned>(result.skipped));
+  logSerial.flush();
+  delay(200);
+  silentRestart();
+}
+
 void handleCommand() {
   uint8_t subCommand = 0;
   if (!readExact(&subCommand, 1, SHORT_TIMEOUT_MS)) {
@@ -764,6 +803,15 @@ void handleCommand() {
       break;
     case 'T':
       handleRead();
+      break;
+    case 'G':
+      handleStatsGlobal();
+      break;
+    case 'B':
+      handleStatsBook();
+      break;
+    case 'I':
+      handleStatsImport();
       break;
     default:
       writeLine("ERR:unknown_cmd\n");
