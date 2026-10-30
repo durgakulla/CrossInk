@@ -196,8 +196,7 @@
     panel.appendChild(summary);
     var help = document.createElement("p");
     help.className = "marks-help";
-    help.textContent = "Choose which entries get a mark on the progress bars. Marks closer than about 1% are merged, " +
-      "and a chapter at the very start of the book has no mark.";
+    help.textContent = "Checked entries get a mark. Marks within about 1% merge; one at the very start is skipped.";
     panel.appendChild(help);
     var bar = document.createElement("div");
     bar.className = "markbar";

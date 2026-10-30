@@ -4,10 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EPUB Optimizer</title>
-<meta name="description" content="Optimize EPUBs for CrossInk in your browser: stable page numbers, split long chapters, e-ink images, and repaired garbled characters. Nothing is uploaded.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap" rel="stylesheet">
+<meta name="description" content="Optimize EPUBs for CrossInk in your browser: stable page numbers, split long chapters, e-ink images, repaired garbled characters and chapter marks.">
 <style>
   :root {
     --bg: #f6f5f1; --fg: #161614; --muted: #62625c; --faint: #8c8c85;
@@ -24,178 +21,125 @@
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body { margin: 0; background: var(--bg); color: var(--fg);
-    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
   a { color: inherit; text-underline-offset: 3px; }
-  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
-  header.top { display: flex; justify-content: space-between; align-items: center;
-    padding: 22px 0; font-size: 0.92rem; color: var(--muted); }
-  header.top .mark { font-weight: 600; color: var(--fg); letter-spacing: 0.01em; text-decoration: none; }
-  header.top .mark span { display: inline-block; width: 10px; height: 10px; background: var(--fg);
-    margin-right: 8px; border-radius: 2px; vertical-align: 0; }
-  h1, h2, h3 { font-family: "Newsreader", Georgia, "Times New Roman", serif; font-weight: 600; letter-spacing: -0.01em; }
-  .hero { display: grid; grid-template-columns: 1fr 1.1fr; gap: 48px; align-items: start; padding: 40px 0 56px; }
-  .hero > div:first-child { padding-top: 34px; }
-  .hero h1 { font-size: clamp(2.2rem, 5vw, 3.2rem); line-height: 1.05; margin: 0 0 18px; }
-  .hero p.lede { font-size: 1.08rem; color: var(--muted); margin: 0 0 18px; max-width: 32em; }
-  .hero ul { margin: 0; padding-left: 18px; color: var(--muted); }
-  .hero li { margin: 4px 0; }
-  .tag { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px;
-    font-size: 0.8rem; color: var(--muted); margin-bottom: 18px; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 16px 32px; }
 
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 26px; }
-  .label { font-size: 0.85rem; color: var(--muted); margin: 0 0 8px; }
-  .seg { display: inline-flex; border: 1px solid var(--fg); border-radius: 999px; padding: 3px; margin-bottom: 20px; }
-  .seg button { border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 0.9rem;
-    padding: 6px 16px; border-radius: 999px; cursor: pointer; }
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    padding: 18px 0 12px; font-size: 0.88rem; color: var(--muted); }
+  header h1 { margin: 0; font-size: 1.15rem; font-weight: 650; color: var(--fg); }
+  header h1 a { text-decoration: none; color: var(--muted); font-weight: 500; }
+  .intro { margin: 0 0 14px; color: var(--muted); font-size: 0.9rem; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  .row + .row { margin-top: 12px; }
+  .seg { display: inline-flex; border: 1px solid var(--fg); border-radius: 999px; padding: 2px; }
+  .seg button { border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 0.85rem;
+    padding: 4px 12px; border-radius: 999px; cursor: pointer; }
   .seg button[aria-pressed="true"] { background: var(--btn); color: var(--btn-fg); }
+  .opt { display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; cursor: pointer; white-space: nowrap; }
+  .opt input { accent-color: var(--fg); margin: 0; }
+  .opt input[type="range"] { width: 90px; }
+  .opt input[type="number"] { width: 72px; font: inherit; padding: 2px 6px; border: 1px solid var(--line);
+    border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .muted { color: var(--muted); }
 
-  .drop { display: block; border: 1.5px dashed var(--faint); border-radius: 12px; padding: 26px 18px; text-align: center;
-    cursor: pointer; color: var(--muted); transition: border-color 0.15s, background 0.15s; }
+  .drop { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: 200px;
+    border: 1.5px dashed var(--faint); border-radius: 10px; padding: 10px 14px; cursor: pointer; color: var(--muted);
+    font-size: 0.9rem; }
   .drop:hover, .drop.over { border-color: var(--fg); color: var(--fg); }
   .drop strong { color: var(--fg); }
   .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-
-  details.options { margin: 16px 0 0; font-size: 0.92rem; }
-  details.options summary { cursor: pointer; color: var(--muted); }
-  details.options summary:hover { color: var(--fg); }
-  .opt { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0; }
-  .opt input[type="checkbox"] { margin-top: 4px; accent-color: var(--fg); }
-  .opt small { display: block; color: var(--muted); font-size: 0.84rem; }
-  .opt-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
-  .opt-row input[type="number"] { width: 90px; font: inherit; padding: 4px 8px; border: 1px solid var(--line);
-    border-radius: 8px; background: var(--bg); color: var(--fg); }
-  .opt-row input[type="range"] { flex: 1; accent-color: var(--fg); }
-
-  button.go { width: 100%; margin-top: 18px; background: var(--btn); color: var(--btn-fg); border: 0; border-radius: 10px;
-    padding: 14px 22px; font: inherit; font-weight: 600; font-size: 1.02rem; cursor: pointer; }
+  button.go { background: var(--btn); color: var(--btn-fg); border: 0; border-radius: 10px; padding: 11px 22px;
+    font: inherit; font-weight: 600; cursor: pointer; }
   button.go:hover { opacity: 0.88; }
   button.go:disabled { opacity: 0.35; cursor: not-allowed; }
-  .fine { margin: 14px 0 0; font-size: 0.85rem; color: var(--muted); }
 
-  .queue { list-style: none; margin: 18px 0 0; padding: 0; }
-  .queue li { border-top: 1px solid var(--line); padding: 12px 0; font-size: 0.92rem; }
-  .queue .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .queue .name { overflow-wrap: anywhere; }
-  .queue .state { color: var(--muted); white-space: nowrap; font-size: 0.85rem; }
-  .queue .detail { color: var(--muted); font-size: 0.84rem; margin-top: 4px; }
-  .queue progress { width: 100%; height: 6px; margin-top: 8px; accent-color: var(--fg); }
-  .queue a.dl { display: inline-block; margin-top: 8px; border: 1px solid var(--fg); border-radius: 8px;
-    padding: 6px 12px; font-weight: 600; text-decoration: none; font-size: 0.88rem; }
+  .queue { list-style: none; margin: 12px 0 0; padding: 0; }
+  .queue:empty { display: none; }
+  .queue li { border-top: 1px solid var(--line); padding: 10px 0; font-size: 0.88rem; }
+  .queue .row { flex-wrap: nowrap; justify-content: space-between; }
+  .queue .name { overflow-wrap: anywhere; font-weight: 600; }
+  .queue .state { color: var(--muted); white-space: nowrap; font-size: 0.82rem; }
+  .queue .detail { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+  .queue progress { width: 100%; height: 5px; margin-top: 6px; accent-color: var(--fg); }
+  .queue a.dl { display: inline-block; margin-top: 6px; border: 1px solid var(--fg); border-radius: 7px;
+    padding: 4px 10px; font-weight: 600; text-decoration: none; font-size: 0.84rem; }
   .queue a.dl:hover { background: var(--bg); }
-  .queue .bad { border-left: 2px solid var(--fg); padding-left: 10px; color: var(--fg); }
+  .queue .bad { border-left: 2px solid var(--fg); padding-left: 8px; color: var(--fg); }
 
-  details.marks { margin-top: 10px; font-size: 0.88rem; }
+  details.marks { margin-top: 6px; font-size: 0.85rem; }
   details.marks summary { cursor: pointer; color: var(--muted); }
   details.marks summary:hover { color: var(--fg); }
-  .marks-help { color: var(--muted); margin: 8px 0; font-size: 0.84rem; }
-  .markbar { position: relative; height: 9px; border: 1px solid var(--fg); border-radius: 2px; margin: 10px 0; }
+  .marks-help { color: var(--muted); margin: 6px 0; font-size: 0.8rem; }
+  .markbar { position: relative; height: 9px; border: 1px solid var(--fg); border-radius: 2px; margin: 8px 0; }
   .markbar i { position: absolute; top: 1px; bottom: 1px; width: 1px; background: var(--fg); }
-  .toc-list { max-height: 260px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
-  .toc-row { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; cursor: pointer; }
+  .toc-list { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; }
+  .toc-row { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; cursor: pointer; }
   .toc-row input { accent-color: var(--fg); flex: none; }
   .toc-row input:disabled + .toc-title { color: var(--faint); }
   .toc-title { flex: 1; overflow-wrap: anywhere; }
-  .toc-pos { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.8rem; }
-  .marks-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
-  .marks-actions button { font: inherit; font-size: 0.85rem; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  .toc-pos { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.78rem; }
+  .marks-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+  .marks-actions button { font: inherit; font-size: 0.82rem; padding: 4px 10px; border-radius: 7px; cursor: pointer;
     border: 1px solid var(--fg); background: transparent; color: var(--fg); }
   .marks-actions button.primary { background: var(--btn); color: var(--btn-fg); }
   .marks-actions button:disabled { opacity: 0.35; cursor: not-allowed; }
 
-  section { padding: 48px 0; border-top: 1px solid var(--line); }
-  section h2 { font-size: clamp(1.7rem, 3.4vw, 2.2rem); margin: 0 0 14px; }
-  ul.notes { list-style: none; margin: 0; padding: 0; max-width: 46em; }
-  ul.notes li { position: relative; padding-left: 22px; margin: 0 0 14px; color: var(--muted); }
-  ul.notes li strong { color: var(--fg); }
-  ul.notes li::before { content: ""; position: absolute; left: 0; top: 0.72em; width: 8px; height: 1px; background: var(--fg); }
-  footer { border-top: 1px solid var(--line); padding: 28px 0 48px; color: var(--muted); font-size: 0.88rem; }
+  .notes { margin: 14px 0 0; padding-left: 18px; color: var(--muted); font-size: 0.82rem; }
+  .notes li { margin: 3px 0; }
+
+  @media (max-width: 520px) { button.go { width: 100%; } }
 
   /* The CrossInk converter writes its log here; it stays hidden. */
   #log-section, #file-table { display: none; }
-
-  @media (max-width: 820px) {
-    .hero { grid-template-columns: 1fr; gap: 28px; padding-top: 16px; }
-    .hero > div:first-child { padding-top: 0; }
-  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header class="top">
-    <a class="mark" href="./"><span></span>CrossInk extras</a>
+  <header>
+    <h1><a href="./">CrossInk extras</a> / EPUB Optimizer</h1>
     <a href="./">Install firmware</a>
   </header>
+  <p class="intro">Adds stable page numbers, splits long chapters, converts images for e-ink and fixes garbled
+    characters ("â€™"). Runs in your browser; nothing is uploaded.</p>
 
-  <div class="hero">
-    <div>
-      <div class="tag">Runs in your browser · Nothing is uploaded</div>
-      <h1>Optimize your EPUBs for CrossInk.</h1>
-      <p class="lede">CrossInk's own optimizer, the one built into its web portal, running right here. It also repairs
-        books whose quotes and apostrophes show up as "â€™" or "Â".</p>
-      <ul>
-        <li>Stable page numbers for the status bar and progress bars</li>
-        <li>Long chapters split so they open quickly and lay out reliably</li>
-        <li>Images resized and converted for e-ink</li>
-      </ul>
-    </div>
-
-    <div class="card">
-      <p class="label">Your reader</p>
-      <div class="seg" role="group" aria-label="Your reader">
+  <div class="card">
+    <div class="row">
+      <div class="seg" role="group" aria-label="Reader">
         <button type="button" data-device="X3" aria-pressed="true">X3</button>
         <button type="button" data-device="X4" aria-pressed="false">X4 / X4 Pro</button>
       </div>
-
+      <label class="opt"><input type="checkbox" id="repairToggle" checked>Fix garbled text</label>
+      <label class="opt"><input type="checkbox" id="splitLongSectionsToggle" checked>Split long chapters</label>
+      <label class="opt"><input type="checkbox" id="preserveCoverColorToggle" checked>Color cover</label>
+      <label class="opt"><input type="checkbox" id="grayscaleOption" checked>Grayscale images</label>
+      <label class="opt">Quality
+        <input type="range" id="qualityOption" min="40" max="95" step="5" value="85">
+        <span id="qualityValue" class="muted">85%</span></label>
+      <label class="opt">Chars/page
+        <input type="number" id="referenceCharactersInput" min="200" max="10000" step="100" value="1500"></label>
+    </div>
+    <div class="row">
       <label class="drop" id="drop">
         <input type="file" id="books" accept=".epub,application/epub+zip" multiple>
         <strong>Choose EPUBs</strong> or drop them here
       </label>
-
-      <details class="options">
-        <summary>Options</summary>
-        <label class="opt"><input type="checkbox" id="repairToggle" checked>
-          <span>Repair garbled characters<small>Fixes "â€™", "â€œ" and stray "Â" from a bad earlier conversion. Only
-            changes books that have them.</small></span></label>
-        <label class="opt"><input type="checkbox" id="splitLongSectionsToggle" checked>
-          <span>Split long chapters<small>Keeps each piece small enough for the reader's memory.</small></span></label>
-        <label class="opt"><input type="checkbox" id="preserveCoverColorToggle" checked>
-          <span>Keep the cover in color<small>For the Home screen and sleep covers.</small></span></label>
-        <label class="opt"><input type="checkbox" id="grayscaleOption" checked>
-          <span>Grayscale images<small>Smaller files that look the same on e-ink.</small></span></label>
-        <div class="opt-row"><span>Image quality</span>
-          <input type="range" id="qualityOption" min="40" max="95" step="5" value="85" aria-label="Image quality">
-          <span id="qualityValue">85%</span></div>
-        <div class="opt-row"><span>Characters per page<small style="display:block;color:var(--muted);font-size:0.84rem">For stable page numbers; 1500 matches CrossInk.</small></span>
-          <input type="number" id="referenceCharactersInput" min="200" max="10000" step="100" value="1500"></div>
-      </details>
-
       <button class="go" type="button" id="start" disabled>Optimize</button>
-      <ul class="queue" id="queue"></ul>
-      <p class="fine">Books are read and converted on this computer. Each optimized book downloads with its original
-        name. Open <em>Chapter marks</em> under a book to choose where the progress-bar chapter marks go.</p>
     </div>
+    <ul class="queue" id="queue"></ul>
   </div>
 
-  <section>
-    <h2>Good to know</h2>
-    <ul class="notes">
-      <li><strong>Start from the original book</strong> when you have it. Optimizing an already-optimized EPUB works, but
-        KOReader progress sync won't map positions for it.</li>
-      <li><strong>Replacing a book on your reader?</strong> Upload it through CrossInk's web portal, or use
-        <em>Delete Book Cache</em> in the book's menu after copying it over. Otherwise the reader keeps using the old
-        copy's layout. Your position and stats are kept either way.</li>
-      <li><strong>Chapter marks</strong> you choose are saved inside the book and need the CrossInk extras v1.3.0
-        firmware or newer. Other readers and older firmware ignore them and pick marks automatically.</li>
-      <li><strong>Protected books</strong> (DRM) can't be optimized.</li>
-      <li>Built on the optimizer from <a href="https://github.com/uxjulia/CrossInk">CrossInk</a>'s web portal (MIT
-        License), unchanged, with the character repair added before it runs.</li>
-    </ul>
-  </section>
-
-  <footer>
-    <a href="./">CrossInk extras</a> ·
-    Source on <a href="https://github.com/durgakulla/CrossInk/tree/feat/reading-heatmap-sleep">GitHub</a>
-  </footer>
+  <ul class="notes">
+    <li><strong>Chapter marks</strong> (under each book) set where the progress bars mark chapters; needs firmware
+      v1.3.0+.</li>
+    <li>Replacing a book on the reader? Use <em>Delete Book Cache</em> in its menu after copying, or upload through
+      CrossInk's web portal.</li>
+    <li>Start from the original book when you can. DRM-protected books can't be optimized.</li>
+    <li>Uses <a href="https://github.com/uxjulia/CrossInk">CrossInk</a>'s web-portal optimizer (MIT).
+      <a href="https://github.com/durgakulla/CrossInk/tree/feat/reading-heatmap-sleep">Source</a></li>
+  </ul>
 </div>
 
 <!-- Elements the CrossInk converter expects; kept hidden. -->
@@ -204,7 +148,7 @@
 
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/crossink-files.js?v=1"></script>
-<script src="chapter-marks.js?v=1"></script>
+<script src="chapter-marks.js?v=2"></script>
 <script src="optimizer.js?v=2"></script>
 </body>
 </html>
