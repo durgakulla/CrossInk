@@ -18,6 +18,14 @@ void writeGlobalStats(Print& out);
 // writing nothing, when the book has no stats or stats tracking is off for it.
 bool writeBookStats(const char* path, Print& out);
 
+// Every book's stats in one stream, so the Reading Stats page needn't list
+// each folder and ask for each book. Walks the card (names starting with "."
+// or for which skipName returns true are skipped; at most 6 folders deep and
+// 300 folders, like the site's own walk) and writes "SCAN:<folders done>"
+// after each folder, "PATH:<path>" for each EPUB/XTC book, and its
+// "STATS:{...}" record when it has stats. The caller writes "END".
+void writeAllBookStats(Print& out, bool (*skipName)(const char* name));
+
 // Writes one "BOOK:{json}" line describing a book file for the File Manager's
 // library view: title, author, progress, time read and the size of its saved
 // cover thumbnail (0 when it has none). Returns false for non-book files.

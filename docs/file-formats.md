@@ -1195,6 +1195,13 @@ Commands (`CMND` + letter; paths as in the other commands):
   stats held in memory don't overwrite the restored ones. Books are matched by
   path; records for books not on the card are counted as `skipped`.
 
+- `Q` (firmware 1.6.0+): every book's stats in one stream, so a host needn't
+  list each folder and send `B` per book. The reader walks the card (names
+  starting with "." and hidden system folders are skipped; at most 6 folders
+  deep and 300 folders) and sends `SCAN:<folders done>` after each folder,
+  `PATH:<path>` for each EPUB or XTC book, and that book's `STATS:` record when
+  it has stats, then `END`.
+
 Library commands (firmware 1.5.0+), used by the File Manager's library view:
 
 - `L` + folder path: a `BOOK:{json}` line for each EPUB, XTC, TXT or Markdown

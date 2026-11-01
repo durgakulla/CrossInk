@@ -815,6 +815,13 @@ void handleStatsBook() {
   writeLine("END\n");
 }
 
+// Every book's stats in one stream (see StatsTransfer::writeAllBookStats).
+void handleStatsAllBooks() {
+  if (!ensureFileTransferAllowed()) return;
+  StatsTransfer::writeAllBookStats(logSerial, isProtectedPathSegment);
+  writeLine("END\n");
+}
+
 // Restores a stats backup the host uploaded to path (deleted afterwards),
 // then restarts so no stats held in memory overwrite the restored files.
 void handleStatsImport() {
@@ -879,6 +886,9 @@ void handleCommand() {
       break;
     case 'B':
       handleStatsBook();
+      break;
+    case 'Q':
+      handleStatsAllBooks();
       break;
     case 'I':
       handleStatsImport();

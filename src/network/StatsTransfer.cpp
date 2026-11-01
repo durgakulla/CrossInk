@@ -13,7 +13,9 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <string>
+#include <vector>
 
 #include "RecentBooksStore.h"
 #include "activities/home/RecentBookProgress.h"
@@ -402,6 +404,56 @@ ImportResult runImport(const char* path, char* line, const bool commit) {
 }
 
 }  // namespace
+
+void writeAllBookStats(Print& out, bool (*skipName)(const char* name)) {
+  constexpr size_t kMaxDepth = 6;
+  constexpr size_t kMaxFolders = 300;
+  struct Folder {
+    std::string path;
+    size_t depth;
+  };
+  std::deque<Folder> pending{{"", 0}};
+  size_t visited = 0;
+  std::vector<std::string> books;
+  while (!pending.empty() && visited < kMaxFolders) {
+    const Folder folder = pending.front();
+    pending.pop_front();
+    visited++;
+    // Read the whole folder before describing its books, which opens their
+    // cache files.
+    books.clear();
+    HalFile root = Storage.open(folder.path.empty() ? "/" : folder.path.c_str());
+    if (root && root.isDirectory()) {
+      char name[256];
+      HalFile file = root.openNextFile();
+      while (file) {
+        file.getName(name, sizeof(name));
+        if (name[0] != '.' && !(skipName && skipName(name))) {
+          std::string path = folder.path + "/" + name;
+          if (file.isDirectory()) {
+            if (folder.depth + 1 <= kMaxDepth) pending.push_back({std::move(path), folder.depth + 1});
+          } else if (FsHelpers::hasEpubExtension(path) || FsHelpers::hasXtcExtension(path)) {
+            books.push_back(std::move(path));
+          }
+        }
+        file.close();
+        yield();
+        file = root.openNextFile();
+      }
+    }
+    if (root) root.close();
+    char scan[24];
+    snprintf(scan, sizeof(scan), "SCAN:%u\n", static_cast<unsigned>(visited));
+    out.print(scan);
+    for (const std::string& path : books) {
+      out.print("PATH:");
+      out.print(path.c_str());
+      out.print("\n");
+      writeBookStats(path.c_str(), out);
+      yield();
+    }
+  }
+}
 
 ImportResult importStatsFile(const char* path) {
   ImportResult result;
