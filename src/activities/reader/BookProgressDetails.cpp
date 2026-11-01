@@ -14,6 +14,7 @@
 
 #include "BookReadingStats.h"
 #include "EpubReaderUtils.h"
+#include "StablePace.h"
 
 namespace {
 
@@ -311,6 +312,7 @@ void loadBookPosition(const std::string& path, BookProgressDetails& book, uint32
       return;
     }
     loadChapterTicks(epub, book);
+    book.stablePageNumbers = epub.hasStablePageNumbers();
 
     EpubReaderUtils::Progress progress;
     if (!EpubReaderUtils::loadProgress(epub, progress, "BPD") || !progress.hasPageCount || progress.pageCount <= 0) {
@@ -369,6 +371,14 @@ void loadBookProgressDetails(const std::string& path, const BookReadingStats& st
   }
   uint32_t chapterPagesLeft = 0;
   loadBookPosition(path, details, chapterPagesLeft);
+  StablePace pace;
+  if (FsHelpers::hasEpubExtension(path)) {
+    pace = StablePace::load(Epub::resolveCachePathForFilePath(path, "/.crosspoint"));
+    // Stable pages even before the reader has measured any, so the pace never
+    // shows page turns for these books.
+    pace.tracked = pace.tracked || details.stablePageNumbers;
+  }
+  details.hasPagesPerMinute = readingPagesPerMinute(stats, pace, details.pagesPerMinute);
   // The reader's stored pace needs a few page samples before it is trusted.
   if (stats.avgSecondsPerForwardPage > 0 && stats.paceSampleCount >= 3) {
     details.chapterTimeLeftSeconds = chapterPagesLeft * stats.avgSecondsPerForwardPage;

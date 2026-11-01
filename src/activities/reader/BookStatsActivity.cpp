@@ -42,6 +42,7 @@ BookStatsActivity::BookStatsActivity(GfxRenderer& renderer, MappedInputManager& 
       bookTitle(title),
       bookCachePath(bookCachePath),
       stats(stats),
+      stablePace(bookCachePath.empty() ? StablePace{} : StablePace::load(bookCachePath)),
       globalStats(globalStats),
       returnToHomeOnExit(returnToHomeOnExit),
       progressPercent(progressPercent),
@@ -57,6 +58,7 @@ BookStatsActivity::BookStatsActivity(GfxRenderer& renderer, MappedInputManager& 
       bookTitle(title),
       bookCachePath(bookCachePath),
       stats(stats),
+      stablePace(bookCachePath.empty() ? StablePace{} : StablePace::load(bookCachePath)),
       globalStats(globalStats),
       allDevicesStats(allDevicesStats),
       showAllDevicesStats(true),
@@ -485,8 +487,8 @@ void BookStatsActivity::loop() {
 
 void BookStatsActivity::render(RenderLock&&) {
   if (usesNoRtcSingleScreenLayout()) {
-    renderNoRtcCombinedStatsPage(renderer, &mappedInput, bookTitle, stats, progressPercent, hasEstimatedTimeLeft,
-                                 estimatedTimeLeftSeconds, globalStats,
+    renderNoRtcCombinedStatsPage(renderer, &mappedInput, bookTitle, stats, stablePace, progressPercent,
+                                 hasEstimatedTimeLeft, estimatedTimeLeftSeconds, globalStats,
                                  showAllDevicesStats ? &allDevicesStats : nullptr, true);
     renderer.displayBuffer();
     return;
@@ -494,8 +496,8 @@ void BookStatsActivity::render(RenderLock&&) {
 
   switch (page) {
     case Page::PerBook:
-      renderPerBookStatsPage(renderer, &mappedInput, bookTitle, stats, progressPercent, hasEstimatedTimeLeft,
-                             estimatedTimeLeftSeconds, true, hasEditableBook(), true);
+      renderPerBookStatsPage(renderer, &mappedInput, bookTitle, stats, stablePace, progressPercent,
+                             hasEstimatedTimeLeft, estimatedTimeLeftSeconds, true, hasEditableBook(), true);
       break;
     case Page::ThisDevice:
       renderGlobalStatsPage(renderer, &mappedInput, tr(STR_STATS_THIS_DEVICE_SCREEN), globalStats, true,

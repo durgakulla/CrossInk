@@ -10,6 +10,7 @@
 #include <cstdio>
 
 #include "MappedInputManager.h"
+#include "StablePace.h"
 #include "components/CompactHeader.h"
 #include "components/TouchActionButtons.h"
 #include "components/TouchHeaderBackButton.h"
@@ -188,6 +189,16 @@ bool cachedEstimatedTimeLeft(const BookReadingStats& stats, uint32_t& seconds) {
   return seconds > 0;
 }
 
+// Pace for the per-book card: stable pages when tracked, else page turns.
+void formatBookPagesPerMinute(const BookReadingStats& stats, const StablePace& pace, char* buf, const size_t len) {
+  float perMinute = 0.0f;
+  if (readingPagesPerMinute(stats, pace, perMinute)) {
+    snprintf(buf, len, "%.1f", perMinute);
+  } else {
+    snprintf(buf, len, "-");
+  }
+}
+
 float pagesPerMinute(const uint32_t totalPagesTurned, const uint32_t totalReadingSeconds) {
   if (totalReadingSeconds <= 60) {
     return 0.0f;
@@ -261,9 +272,9 @@ void drawHorizontalBars(GfxRenderer& renderer, const int x, const int y, const i
 }
 
 void drawPerBookStatsCard(GfxRenderer& renderer, const int x, const int y, const int w, const int h,
-                          const std::string& bookTitle, const BookReadingStats& stats, const float progressPercent,
-                          const bool hasEstimatedTimeLeft, const uint32_t estimatedTimeLeftSeconds,
-                          const StatsLayout& layout) {
+                          const std::string& bookTitle, const BookReadingStats& stats, const StablePace& pace,
+                          const float progressPercent, const bool hasEstimatedTimeLeft,
+                          const uint32_t estimatedTimeLeftSeconds, const StatsLayout& layout) {
   renderer.drawRect(x, y, w, h);
   renderer.drawLine(x, y + layout.topCardTitleH, x + w, y + layout.topCardTitleH);
   const std::string visibleTitle =
@@ -309,7 +320,7 @@ void drawPerBookStatsCard(GfxRenderer& renderer, const int x, const int y, const
   }
   drawStatCell(renderer, x + thirdW, thirdW, y + layout.topCardTitleH + rowH, rowH, buf, tr(STR_TIME_LEFT));
 
-  snprintf(buf, sizeof(buf), "%.1f", pagesPerMinute(stats.totalPagesTurned, stats.totalReadingSeconds));
+  formatBookPagesPerMinute(stats, pace, buf, sizeof(buf));
   drawStatCell(renderer, x + thirdW * 2, thirdW, y + layout.topCardTitleH + rowH, rowH, buf,
                tr(STR_STATS_PAGES_PER_MIN));
 
@@ -433,9 +444,9 @@ void drawDateAdjustButton(const GfxRenderer& renderer, const int x, const int y,
 }  // namespace
 
 void renderPerBookStatsPage(GfxRenderer& renderer, const MappedInputManager* mappedInput, const std::string& bookTitle,
-                            const BookReadingStats& stats, const float progressPercent, const bool hasEstimatedTimeLeft,
-                            const uint32_t estimatedTimeLeftSeconds, const bool showButtonHints,
-                            const bool showEditButton, const bool showMoreButton) {
+                            const BookReadingStats& stats, const StablePace& pace, const float progressPercent,
+                            const bool hasEstimatedTimeLeft, const uint32_t estimatedTimeLeftSeconds,
+                            const bool showButtonHints, const bool showEditButton, const bool showMoreButton) {
   renderer.clearScreen();
   const bool showRtcStats = shouldShowRtcBasedStats();
   const auto& metrics = UITheme::getInstance().getMetrics();
@@ -468,8 +479,8 @@ void renderPerBookStatsPage(GfxRenderer& renderer, const MappedInputManager* map
     const int dayOfWeekCardH = dayOfWeekH + dayOfWeekExtraHeight;
     topCardH += extraTopCardHeight;
 
-    drawPerBookStatsCard(renderer, cardX, y, cardW, topCardH, bookTitle, stats, progressPercent, hasEstimatedTimeLeft,
-                         estimatedTimeLeftSeconds, layout);
+    drawPerBookStatsCard(renderer, cardX, y, cardW, topCardH, bookTitle, stats, pace, progressPercent,
+                         hasEstimatedTimeLeft, estimatedTimeLeftSeconds, layout);
     y += topCardH + layout.cardGap;
 
     drawSectionCard(renderer, cardX, y, cardW, timeOfDayCardH, tr(STR_STATS_TIME_OF_DAY), layout);
@@ -493,8 +504,8 @@ void renderPerBookStatsPage(GfxRenderer& renderer, const MappedInputManager* map
       const int unusedExtraHeight = extraHeight - (topCardH - layout.topCardH);
       y += std::min(unusedExtraHeight / 3, kStandaloneNoRtcMaxVerticalOffset);
     }
-    drawPerBookStatsCard(renderer, cardX, y, cardW, topCardH, bookTitle, stats, progressPercent, hasEstimatedTimeLeft,
-                         estimatedTimeLeftSeconds, layout);
+    drawPerBookStatsCard(renderer, cardX, y, cardW, topCardH, bookTitle, stats, pace, progressPercent,
+                         hasEstimatedTimeLeft, estimatedTimeLeftSeconds, layout);
   }
 
   if (showButtonHints && mappedInput) {
@@ -568,7 +579,7 @@ void renderGlobalStatsPage(GfxRenderer& renderer, const MappedInputManager* mapp
 
 void renderNoRtcCombinedStatsPage(GfxRenderer& renderer, const MappedInputManager* mappedInput,
                                   const std::string& bookTitle, const BookReadingStats& bookStats,
-                                  const float progressPercent, const bool hasEstimatedTimeLeft,
+                                  const StablePace& pace, const float progressPercent, const bool hasEstimatedTimeLeft,
                                   const uint32_t estimatedTimeLeftSeconds, const GlobalReadingStats& deviceStats,
                                   const GlobalReadingStats* allDevicesStats, const bool showButtonHints) {
   renderer.clearScreen();
@@ -598,7 +609,7 @@ void renderNoRtcCombinedStatsPage(GfxRenderer& renderer, const MappedInputManage
   const int allDevicesCardH = layout.globalCardH + allDevicesExtraHeight;
 
   int y = metrics.topPadding + headerHeight + layout.topGap;
-  drawPerBookStatsCard(renderer, cardX, y, cardW, perBookCardH, bookTitle, bookStats, progressPercent,
+  drawPerBookStatsCard(renderer, cardX, y, cardW, perBookCardH, bookTitle, bookStats, pace, progressPercent,
                        hasEstimatedTimeLeft, estimatedTimeLeftSeconds, layout);
   y += perBookCardH + layout.cardGap;
 

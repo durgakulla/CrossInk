@@ -18,8 +18,11 @@ struct BookProgressDetails {
   float progressPercent = -1.0f;  // Negative when unknown
   uint32_t page = 0;              // Stable (EPUB) or XTC page, 1-based; 0 when unknown
   uint32_t pageCount = 0;
-  uint32_t readingSeconds = 0;              // Time read in this book; 0 when unknown or untracked
-  uint32_t pagesTurned = 0;                 // Forward pages read in this book, for the reading pace
+  uint32_t readingSeconds = 0;     // Time read in this book; 0 when unknown or untracked
+  uint32_t pagesTurned = 0;        // Forward page turns in this book
+  bool stablePageNumbers = false;  // EPUB with stable page numbers: pace is in stable pages
+  bool hasPagesPerMinute = false;  // Pace to show (see readingPagesPerMinute in StablePace.h)
+  float pagesPerMinute = 0.0f;
   uint32_t timeLeftSeconds = 0;             // Estimated time to finish; 0 when unknown
   uint32_t chapterTimeLeftSeconds = 0;      // Estimated time to finish the chapter; 0 when unknown
   ReadingStatsDate startDate;               // Invalid when unknown

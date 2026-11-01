@@ -546,6 +546,28 @@ Binary layout:
 - `[41-68]` `dayOfWeekSeconds[7]` (`uint32_t` LE each)
 - `[69-72]` `estimatedTimeLeftSeconds` (`uint32_t` LE, `0` means unavailable)
 
+## `stable_pace.bin`
+
+### Version 1 (CrossInk extras)
+
+Reading pace in stable pages for EPUBs with stable page numbers, kept beside
+`stats_v5.bin` so the shared stats format is unchanged. At each counted
+forward page turn the reader adds the stable pages moved since the previous
+counted turn (0 to 5; anything else, a back turn, or a page read for under 2
+seconds or past the idle threshold starts a new run) and the seconds spent on
+the page left. Pages per minute shows in stable pages once 120 seconds have
+been measured; until then it is hidden. The file's presence marks the book's
+pace as stable pages (the reader creates it, empty, when it opens such a
+book). Delete Book Cache and replacing the book keep it; moving or renaming
+the book carries it with the cache folder; resetting the book's stats sets it
+back to zero.
+
+Binary layout (9 bytes):
+
+- `[0]` version (`1`)
+- `[1-4]` stable pages read (`uint32_t` LE)
+- `[5-8]` seconds spent on them (`uint32_t` LE)
+
 ## `section.bin`
 
 ### Version 83
@@ -1233,4 +1255,6 @@ Records (`type` field):
   `avgSecondsPerPage`, `paceSamples`, `timeLeftSeconds`, `startDateManual`,
   `finishedDateManual`, `startDate` and `finishedDate` (`YYYY-MM-DD` or null),
   `timeOfDay[4]`, `dayOfWeek[7]`, and on export `title`, `author` and `progress`
-  (percent or null), which are ignored on import.
+  (percent or null), which are ignored on import. Firmware 1.7.0+ adds
+  `stablePages` and `stableSeconds` (`stable_pace.bin`) for books whose pace
+  is in stable pages; imports without them leave that file alone.

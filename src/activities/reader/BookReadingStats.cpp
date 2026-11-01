@@ -1,5 +1,7 @@
 #include "BookReadingStats.h"
 
+#include "StablePace.h"
+
 #include <HalStorage.h>
 #include <I18n.h>
 #include <Logging.h>
@@ -452,6 +454,14 @@ bool BookReadingStats::remove(const std::string& cachePath) {
   if (ok && Storage.exists(statsPath.c_str()) && !Storage.remove(statsPath.c_str())) {
     LOG_ERR("STATS", "Could not delete %s", statsFileName.c_str());
     ok = false;
+  }
+  // The stable-page pace starts over too; its file stays as the marker that
+  // this book's pace is in stable pages.
+  StablePace pace = StablePace::load(cachePath);
+  if (ok && pace.tracked && (pace.pages > 0 || pace.seconds > 0)) {
+    pace.pages = 0;
+    pace.seconds = 0;
+    ok = pace.save(cachePath);
   }
   return ok;
 }

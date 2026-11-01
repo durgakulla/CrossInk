@@ -23,6 +23,7 @@
 #include "activities/reader/BookStatsTracking.h"
 #include "activities/reader/GlobalReadingStats.h"
 #include "activities/reader/ReadingStatsUtils.h"
+#include "activities/reader/StablePace.h"
 #include "components/TouchRegistry.h"
 #include "components/UITheme.h"
 #include "components/UiAppHelpers.h"
@@ -194,13 +195,6 @@ bool estimatedTimeLeft(const BookReadingStats& stats, const float progressPercen
   return fallbackEstimatedTimeLeft(stats, progressPercent, seconds);
 }
 
-float pagesPerMinute(const uint32_t totalPagesTurned, const uint32_t totalReadingSeconds) {
-  if (totalReadingSeconds <= 60) {
-    return 0.0f;
-  }
-  return static_cast<float>(totalPagesTurned) * 60.0f / static_cast<float>(totalReadingSeconds);
-}
-
 const char* dayCountText(const uint16_t days) { return days == 1 ? tr(STR_STATS_DAY) : tr(STR_STATS_DAYS); }
 
 int statsBlockHeight(const GfxRenderer& renderer) {
@@ -224,8 +218,23 @@ void drawStatsRow(const GfxRenderer& renderer, const int rightX, const int y, co
   drawRightAlignedText(renderer, SMALL_FONT_ID, rightX, y + valueLineH + kStatsValueLabelGap, label, false, black);
 }
 
+// Pace for the stats block: stable pages for EPUBs whose pace the reader
+// tracks in stable pages (StablePace.h), otherwise page turns.
+void formatPagesPerMinute(const std::string& bookPath, const BookReadingStats& stats, char* buf, const size_t len) {
+  const StablePace pace = FsHelpers::hasEpubExtension(bookPath)
+                              ? StablePace::load(Epub::cachePathForFilePath(bookPath, "/.crosspoint"))
+                              : StablePace{};
+  float pagesPerMinute = 0.0f;
+  if (readingPagesPerMinute(stats, pace, pagesPerMinute)) {
+    snprintf(buf, len, "%.1f", pagesPerMinute);
+  } else {
+    snprintf(buf, len, "-");
+  }
+}
+
 void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, const BookReadingStats* stats,
-                        const float progressPercent, const bool showStats, const bool black = true) {
+                        const std::string& bookPath, const float progressPercent, const bool showStats,
+                        const bool black = true) {
   const int rightX = renderer.getScreenWidth() - contentInset(renderer) - (gpio.deviceIsX3() ? kPairInwardShiftX3 : 0);
   const int blockH = statsBlockHeight(renderer);
   const bool showRtcStats = halClock.isAvailable();
@@ -292,7 +301,7 @@ void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, cons
   }
 
   rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);
-  snprintf(value, sizeof(value), "%.1f", pagesPerMinute(bookStats.totalPagesTurned, bookStats.totalReadingSeconds));
+  formatPagesPerMinute(bookPath, bookStats, value, sizeof(value));
   drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_PAGES_PER_MIN), black);
 
   if (!showRtcStats) {
@@ -558,7 +567,8 @@ void DashboardTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const
   }
   TouchRegistry::getInstance().add(coverRect, 0, TouchRegistry::Cover);
 
-  drawDashboardStats(renderer, coverRect, stats, progressPercent, showBookStatsForPath(recentBooks[0].path));
+  drawDashboardStats(renderer, coverRect, stats, recentBooks[0].path, progressPercent,
+                     showBookStatsForPath(recentBooks[0].path));
   drawBookText(renderer, coverRect, recentBooks[0], currentChapterTitle);
   if (SETTINGS.shouldTrackReadingStats()) drawFooterStats(renderer, coverRect, globalStats);
 }
@@ -572,7 +582,7 @@ void DashboardTheme::drawSleepScreen(const GfxRenderer& renderer, const RecentBo
                          DashboardMetrics::values.homeCoverTileHeight};
   const Rect coverRect = coverRectForScreen(renderer, contentRect);
   drawBookCover(renderer, coverRect, book, inverted ? Color::White : Color::Black);
-  drawDashboardStats(renderer, coverRect, stats, progressPercent, showBookStatsForPath(book.path), inverted);
+  drawDashboardStats(renderer, coverRect, stats, book.path, progressPercent, showBookStatsForPath(book.path), inverted);
   drawBookText(renderer, coverRect, book, currentChapterTitle, inverted);
   if (SETTINGS.shouldTrackReadingStats()) drawFooterStats(renderer, coverRect, globalStats, !inverted);
 }

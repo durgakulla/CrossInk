@@ -23,6 +23,7 @@
 #include "activities/reader/BookStatsTracking.h"
 #include "activities/reader/DailyReadingMinutes.h"
 #include "activities/reader/GlobalReadingStats.h"
+#include "activities/reader/StablePace.h"
 #include "activities/reader/ReadingStatsUtils.h"
 
 #ifndef CROSSINK_FIRMWARE_DEVICE_TYPE
@@ -155,9 +156,17 @@ bool applyBook(JsonObjectConst record, const bool commit, bool& skipped) {
       !parseArray(record["dayOfWeek"], stats.dayOfWeekSeconds)) {
     return false;
   }
+  // Stable-page pace (firmware 1.7.0+ backups); older backups have none.
+  StablePace pace;
+  const bool hasPace = !record["stablePages"].isNull() || !record["stableSeconds"].isNull();
+  if (hasPace) {
+    if (!record["stablePages"].is<uint32_t>() || !record["stableSeconds"].is<uint32_t>()) return false;
+    pace.pages = record["stablePages"].as<uint32_t>();
+    pace.seconds = record["stableSeconds"].as<uint32_t>();
+  }
   if (!commit) return true;
   Storage.mkdir(cachePath.c_str(), true);
-  return stats.save(cachePath);
+  return stats.save(cachePath) && (!hasPace || pace.save(cachePath));
 }
 
 // Reads one line into buffer; false at the end of the file or when a line is
@@ -329,6 +338,11 @@ bool writeBookStats(const char* path, Print& out) {
   setDate(record["finishedDate"], stats.finishedDate);
   setArray(record["timeOfDay"], stats.timeOfDaySeconds);
   setArray(record["dayOfWeek"], stats.dayOfWeekSeconds);
+  const StablePace pace = StablePace::load(cachePath);
+  if (pace.tracked) {
+    record["stablePages"] = pace.pages;
+    record["stableSeconds"] = pace.seconds;
+  }
   writeRecord(record, out);
   return true;
 }

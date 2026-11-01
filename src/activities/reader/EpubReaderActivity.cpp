@@ -1550,6 +1550,7 @@ void EpubReaderActivity::finalizeReadingStatsOnExit() {
   if (statsTrackingActive || paceDirty || pendingStatsCommit || stats.estimatedTimeLeftSeconds != previousEstimate) {
     if (stats.save(epub->getCachePath()) && (statsTrackingActive || pendingStatsCommit)) globalStats.save();
   }
+  saveStablePace();
 }
 
 void EpubReaderActivity::syncStatsTrackingState() {
@@ -1706,6 +1707,49 @@ void EpubReaderActivity::recordForwardPagePaceSample(uint32_t seconds, const cha
   stats.recordForwardPageRead(seconds);
   paceDirty = true;
   recoverStoredPaceFromSession("pace_sample");
+}
+
+// The stable page of the page on screen, or -1 when it isn't known exactly
+// (no stable page numbers, or a section still being laid out).
+int32_t EpubReaderActivity::stablePageOfCurrentPage() const {
+  if (!epub || !stablePace.tracked || !section || section->isBuilding() || section->isPartial() ||
+      section->pageCount <= 0) {
+    return -1;
+  }
+  const float sectionProgress = static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
+  uint32_t page = 0;
+  uint32_t pageCount = 0;
+  if (!epub->resolveReferencePage(currentSpineIndex, sectionProgress, page, pageCount) || page == 0) return -1;
+  return static_cast<int32_t>(page);
+}
+
+// Adds the stable pages between this counted forward turn and the previous
+// one, with the seconds spent on the page left. Runs of reading restart after
+// a skipped or idle page, a back turn, or a jump.
+void EpubReaderActivity::recordStablePace(const int32_t leftStablePage, const uint32_t seconds) {
+  constexpr int32_t kMaxStablePagesPerTurn = 5;
+  const bool usableSeconds =
+      seconds >= MIN_READING_PACE_SAMPLE_SECONDS && seconds <= SETTINGS.getReadingIdleTimeThresholdSeconds();
+  if (leftStablePage < 0 || !usableSeconds) {
+    stablePaceBaseline = -1;
+    return;
+  }
+  if (stablePaceBaseline >= 0) {
+    const int32_t delta = leftStablePage - stablePaceBaseline;
+    if (delta >= 0 && delta <= kMaxStablePagesPerTurn) {
+      stablePace.add(static_cast<uint32_t>(delta), seconds);
+      stablePaceDirty = true;
+    }
+  }
+  LOG_DBG("ERS", "Stable pace: left page %ld after %ld, %lus; total %lu pages in %lus",
+          static_cast<long>(leftStablePage), static_cast<long>(stablePaceBaseline), static_cast<unsigned long>(seconds),
+          static_cast<unsigned long>(stablePace.pages), static_cast<unsigned long>(stablePace.seconds));
+  stablePaceBaseline = leftStablePage;
+}
+
+void EpubReaderActivity::saveStablePace() {
+  if (!epub || !stablePace.tracked || !stablePaceDirty) return;
+  if (stablePace.save(epub->getCachePath())) stablePaceDirty = false;
 }
 
 bool EpubReaderActivity::getSessionAveragePaceSeconds(uint16_t& avgSeconds) const {
@@ -2444,6 +2488,12 @@ void EpubReaderActivity::onEnter() {
   // Session count and reading time are committed on exit, or when tracking is
   // turned off, once thresholds are met.
   stats = BookReadingStats::load(epub->getCachePath());
+  stablePace = StablePace::load(epub->getCachePath());
+  stablePaceBaseline = -1;
+  stablePaceDirty = false;
+  // Books with stable page numbers measure their pace in stable pages; the
+  // file marks that for the stats screens even before any is measured.
+  if (epub->hasStablePageNumbers() && !stablePace.tracked) stablePace.save(epub->getCachePath());
   bookStatsEnabled = BookStatsTracking::isBookEnabled(epub->getCachePath());
   statsTrackingActive = SETTINGS.shouldTrackReadingStats() && bookStatsEnabled;
   paceDirty = false;
@@ -4169,6 +4219,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuAction action, const 
       const GlobalReadingStats displayAllDevicesStats =
           hasSyncedStats ? GlobalReadingStats::loadAggregated(globalStats) : GlobalReadingStats{};
       pauseReadingPaceTimer("book_stats");
+      saveStablePace();  // Book Stats reads it from the card
       if (hasSyncedStats) {
         startActivityForResult(
             std::make_unique<BookStatsActivity>(renderer, mappedInput, epub->getTitle(), epub->getCachePath(),
@@ -4457,6 +4508,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuAction action, const 
 std::unique_ptr<Activity> EpubReaderActivity::createFrontlightReadingStatsActivity() {
   if (!statsTrackingActive) return {};
   if (!epub) return {};
+  saveStablePace();  // Book Stats reads it from the card
 
   BookReadingStats displayStats = stats;
   if (statsTrackingActive) {
@@ -5002,9 +5054,14 @@ void EpubReaderActivity::resetReadingPaceData() {
   sessionPaceSampleSeconds = 0;
   sessionPaceSampleCount = 0;
   armReadingPaceWarmup("reading_pace_reset");
+  stablePace.pages = 0;
+  stablePace.seconds = 0;
+  stablePaceBaseline = -1;
+  stablePaceDirty = stablePace.tracked;
   if (epub) {
     epub->setupCacheDir();
     stats.save(epub->getCachePath());
+    saveStablePace();
   }
 #if defined(ENABLE_SERIAL_LOG) && LOG_LEVEL >= 2
   LOG_DBG("ERS", "Reading pace reset: avg=%u->%u samples=%u->%u totalReadingSeconds=%lu totalPagesTurned=%lu", oldAvg,
@@ -5015,6 +5072,10 @@ void EpubReaderActivity::resetReadingPaceData() {
 
 void EpubReaderActivity::resetCurrentBookStatsAfterDelete() {
   stats = BookReadingStats{};
+  stablePace.pages = 0;
+  stablePace.seconds = 0;
+  stablePaceBaseline = -1;
+  stablePaceDirty = false;
   sessionReadingSeconds = 0;
   sessionPaceSampleSeconds = 0;
   sessionPaceSampleCount = 0;
@@ -6149,6 +6210,7 @@ void EpubReaderActivity::pageTurn(bool isForwardTurn, const char* source) {
     uint32_t forwardReadSeconds = 0;
     const bool shouldRecordForwardRead = forwardPageReadElapsed(forwardReadSeconds, source);
     recordCurrentPageReadingTime(source);
+    const int32_t leftStablePage = stablePageOfCurrentPage();
     const bool exitingChapter =
         section && !section->isBuilding() && section->pageCount > 0 && section->currentPage >= section->pageCount - 1;
     // Advance within the section while there are (or may still be) more pages: either a built
@@ -6181,11 +6243,15 @@ void EpubReaderActivity::pageTurn(bool isForwardTurn, const char* source) {
       if (statsTrackingActive) {
         stats.totalPagesTurned++;
         globalStats.totalPagesTurned++;
+        recordStablePace(leftStablePage, forwardReadSeconds);
       }
+    } else {
+      stablePaceBaseline = -1;
     }
   } else {
     recordCurrentPageReadingTime(source);
     armReadingPaceWarmup("back_page");
+    stablePaceBaseline = -1;
     if (section->currentPage > 0) {
       section->currentPage--;
     } else if (currentSpineIndex > 0) {

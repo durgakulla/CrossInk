@@ -89,10 +89,10 @@ void drawBookProgressBar(const GfxRenderer& renderer, const BookProgressDetails&
   }
 
   const int belowY = barY + kBarHeight + kBarToLabelGap;
-  // Same pace as the book stats screens, which need over a minute of reading.
-  if (book.readingSeconds > 60 && book.pagesTurned > 0) {
-    const float pagesPerMinute = static_cast<float>(book.pagesTurned) * 60.0f / static_cast<float>(book.readingSeconds);
-    snprintf(buf, sizeof(buf), tr(STR_HEATMAP_PAGES_PER_MIN_VALUE), pagesPerMinute);
+  // Same pace as the book stats screens: stable pages for books with stable
+  // page numbers, otherwise page turns.
+  if (book.hasPagesPerMinute) {
+    snprintf(buf, sizeof(buf), tr(STR_HEATMAP_PAGES_PER_MIN_VALUE), book.pagesPerMinute);
     renderer.drawText(SMALL_FONT_ID, x, belowY, buf);
   }
   if (book.progressPercent >= 0.0f) {

@@ -7,6 +7,7 @@
 #include "../Activity.h"
 #include "BookReadingStats.h"
 #include "GlobalReadingStats.h"
+#include "StablePace.h"
 
 class BookStatsActivity final : public Activity {
   enum class Page : uint8_t { PerBook, ThisDevice, AllDevices, EditDates };
@@ -14,6 +15,7 @@ class BookStatsActivity final : public Activity {
   std::string bookTitle;
   std::string bookCachePath;
   BookReadingStats stats;
+  StablePace stablePace;
   GlobalReadingStats globalStats;
   GlobalReadingStats allDevicesStats;
   bool showAllDevicesStats = false;

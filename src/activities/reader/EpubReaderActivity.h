@@ -22,6 +22,7 @@
 #include "ManualPageTurnQueue.h"
 #include "ReaderProgressSaveDebouncer.h"
 #include "SideButtonShortcuts.h"
+#include "StablePace.h"
 #include "activities/Activity.h"
 #include "activities/reader/TouchReaderPreviewModel.h"
 #include "components/OptionPopup.h"
@@ -177,6 +178,12 @@ class EpubReaderActivity final : public Activity {
   ReaderSettingsSnapshot suspendedBookReaderSettings;
   BookReadingStats stats;
   GlobalReadingStats globalStats;
+  // Pace in stable pages for books with stable page numbers (StablePace.h):
+  // the stable page left at the last counted forward turn, -1 when a new run
+  // of forward reading starts.
+  StablePace stablePace;
+  int32_t stablePaceBaseline = -1;
+  bool stablePaceDirty = false;
   bool bookStatsEnabled = true;
   bool statsTrackingActive = true;
   bool paceDirty = false;
@@ -408,6 +415,9 @@ class EpubReaderActivity final : public Activity {
   bool currentPageReadingSecondsForStats(uint32_t& seconds, const char* source) const;
   void recordCurrentPageReadingTime(const char* source = "unknown");
   void recordForwardPagePaceSample(uint32_t seconds, const char* source);
+  int32_t stablePageOfCurrentPage() const;
+  void recordStablePace(int32_t leftStablePage, uint32_t seconds);
+  void saveStablePace();
   bool getSessionAveragePaceSeconds(uint16_t& avgSeconds) const;
   void recoverStoredPaceFromSession(const char* reason = "unknown");
   bool getTimeLeftPaceSeconds(uint16_t& avgSeconds, const char*& source, uint16_t& sampleCount) const;
