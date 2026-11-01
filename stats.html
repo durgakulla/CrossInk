@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="site.css?v=2">
+<link rel="stylesheet" href="site.css?v=3">
 <script src="theme.js?v=1"></script>
 <style>
   :root { --l0: #ecebe6; --l1: #c9c8c1; --l2: #8c8c85; --l3: #161614; }
@@ -76,16 +76,17 @@
     <h1>Reading Stats</h1>
     <p>Your reading history, streaks and books, from your reader or a backup file.</p>
   </div>
+  <div class="reader-bar" id="readerBar"></div>
   <div class="card">
     <div class="bar">
-      <button class="go" type="button" id="connect">Connect reader</button>
+      <button class="go" type="button" id="connect">Load from reader</button>
       <label class="tool">Open backup…<input type="file" id="openBackup" accept=".json,application/json"></label>
       <span class="spacer"></span>
       <button class="tool" type="button" id="saveBackup" disabled>Download backup</button>
       <button class="tool" type="button" id="saveCsv" disabled>Download CSV</button>
       <label class="tool" id="restoreLabel">Restore from backup…<input type="file" id="restoreFile" accept=".json,application/json"></label>
     </div>
-    <div id="status" role="status">Plug the reader in by USB and leave it on its Home screen.</div>
+    <div id="status" role="status">Load your stats from the reader, or open a backup file.</div>
     <div id="source"></div>
     <div class="panel" id="restorePanel" hidden></div>
   </div>
@@ -124,7 +125,8 @@
   </footer>
 </div>
 
-<script src="usb-send.js?v=5"></script>
-<script src="stats-ui.js?v=1"></script>
+<script src="usb-send.js?v=6"></script>
+<script src="reader.js?v=1"></script>
+<script src="stats-ui.js?v=2"></script>
 </body>
 </html>

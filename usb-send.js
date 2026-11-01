@@ -319,6 +319,7 @@
   };
 
   Link.prototype.close = async function () {
+    if (!this.closed) notify(false);
     this.closed = true;
     try { await this.reader.cancel(); } catch (e) {}
     try { await this.port.close(); } catch (e) {}
@@ -327,14 +328,24 @@
   var link = null;
   var busy = Promise.resolve();
 
+  // Tells the page (reader.js) when the reader connects or disconnects.
+  function notify(connected) {
+    window.dispatchEvent(new CustomEvent("crossink-reader", { detail: { connected: connected } }));
+  }
+
+  // Readers this site was already allowed to use; opening one needs no picker.
+  async function allowedPorts() {
+    if (!("serial" in navigator)) return [];
+    return (await navigator.serial.getPorts()).filter(function (p) {
+      var info = p.getInfo();
+      return FILTERS.some(function (f) { return f.usbVendorId === info.usbVendorId; });
+    });
+  }
+
   async function connect() {
     if (link && !link.closed) return link;
     if (!("serial" in navigator)) throw new Error("This browser can't use USB. Use Chrome or Edge on a computer.");
-    var ports = await navigator.serial.getPorts();
-    var port = ports.filter(function (p) {
-      var info = p.getInfo();
-      return FILTERS.some(function (f) { return f.usbVendorId === info.usbVendorId; });
-    })[0] || await navigator.serial.requestPort({ filters: FILTERS });
+    var port = (await allowedPorts())[0] || await navigator.serial.requestPort({ filters: FILTERS });
     try {
       await port.open({ baudRate: 115200, bufferSize: 8192 });
     } catch (e) {
@@ -347,7 +358,28 @@
       }
     }
     link = new Link(port);
+    notify(true);
     return link;
+  }
+
+  // Closes the connection after any operation in progress.
+  function disconnect() {
+    var run = busy.then(async function () {
+      if (link) await link.close();
+      link = null;
+    });
+    busy = run.catch(function () {});
+    return run;
+  }
+
+  // Unplugging the reader ends the connection.
+  if ("serial" in navigator && navigator.serial.addEventListener) {
+    navigator.serial.addEventListener("disconnect", function (e) {
+      if (link && link.port === e.target) {
+        link.close();
+        link = null;
+      }
+    });
   }
 
   function cleanFolder(folder) {
@@ -531,5 +563,6 @@
   };
 
   window.UsbSend = { send: send, listBooks: listBooks, replace: replace, files: files, stats: stats,
+    disconnect: disconnect, hasAllowedReader: async function () { return (await allowedPorts()).length > 0; },
     supported: "serial" in navigator };
 })();

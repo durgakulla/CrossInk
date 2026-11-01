@@ -85,6 +85,19 @@ label.tool input { position: absolute; width: 1px; height: 1px; opacity: 0; }
   padding: 4px 12px; border-radius: 999px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--btn); color: var(--btn-fg); }
 
+/* Reader strip (reader.js) on the USB tool pages. */
+.reader-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 14px; padding: 9px 14px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-size: 0.88rem; min-height: 46px; }
+.reader-bar .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--faint); }
+.reader-bar.connected .dot { background: var(--fg); border-color: var(--fg); }
+.reader-bar.connecting .dot { border-color: var(--fg); border-right-color: transparent; animation: reader-spin 0.9s linear infinite; }
+@keyframes reader-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .reader-bar.connecting .dot { animation: none; } }
+.reader-bar.connected > span:nth-child(2) { font-weight: 600; }
+.reader-bar .update { font-weight: 600; }
+.reader-bar .hint { font-size: 0.84rem; }
+.reader-bar .tool { margin-left: auto; }
+
 .muted { color: var(--muted); }
 .bad { color: var(--fg) !important; border-left: 2px solid var(--fg); padding-left: 8px; }
 .notes { margin: 14px 0 0; padding-left: 18px; color: var(--muted); font-size: 0.82rem; }

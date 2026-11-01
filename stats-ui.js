@@ -364,10 +364,9 @@
       });
       restorePanel.hidden = true;
       cardBooks = null;
-      connectButton.textContent = "Reconnect";
       say("Restored " + (result.books || 0) + " book" + (result.books === 1 ? "" : "s") +
         (result.skipped ? " (" + result.skipped + " not on this reader)" : "") +
-        ". The reader is restarting; reconnect in a moment to see the restored stats.");
+        ". The reader is restarting; this page reconnects and shows its stats when it's back.");
       show(backup, "Showing the restored backup.");
     } catch (e) {
       say(friendly(e), true);
@@ -379,7 +378,7 @@
 
   // ---- Events --------------------------------------------------------------
 
-  connectButton.addEventListener("click", async function () {
+  async function loadReader() {
     if (busy) return;
     busy = true;
     connectButton.disabled = true;
@@ -387,7 +386,7 @@
       var d = await loadFromReader();
       show(d, "From your reader" + (d.meta && d.meta.firmware ? " (firmware " + d.meta.firmware + ")" : "") +
         (d.meta && d.meta.today ? " · today is " + shortDate(d.meta.today) : ""));
-      say("Connected");
+      say("Loaded from your reader");
       connectButton.textContent = "Refresh";
     } catch (e) {
       say(friendly(e), true);
@@ -395,6 +394,17 @@
       busy = false;
       connectButton.disabled = false;
     }
+  }
+
+  // Loads whenever the reader strip (reader.js) connects, including after a
+  // restore restarts the reader.
+  connectButton.addEventListener("click", function () {
+    if (Reader.connected) loadReader(); else Reader.connect();
+  });
+  Reader.onConnect(loadReader);
+  Reader.onDisconnect(function () {
+    cardBooks = null;
+    connectButton.textContent = "Load from reader";
   });
 
   async function readBackupFile(input) {

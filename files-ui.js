@@ -8,8 +8,7 @@
   "use strict";
 
   var fs = UsbSend.files;
-  var connectButton = document.getElementById("connect");
-  var device = document.getElementById("device");
+  var idle = document.getElementById("idle");
   var browser = document.getElementById("browser");
   var crumbs = document.getElementById("crumbs");
   var list = document.getElementById("files");
@@ -603,22 +602,21 @@
     renderSelection();
   }
 
-  connectButton.addEventListener("click", async function () {
-    connectButton.disabled = true;
-    device.classList.remove("bad");
-    device.textContent = "Connecting…";
-    try {
-      var info = await fs.status();
-      device.textContent = "Connected · " + (info.device || "reader") + (info.firmware ? " · firmware " + info.firmware : "");
-      connectButton.textContent = "Reconnect";
-      browser.hidden = false;
-      await open("/");
-    } catch (e) {
-      device.classList.add("bad");
-      device.textContent = friendly(e);
-    } finally {
-      connectButton.disabled = false;
-    }
+  // The reader strip (reader.js) owns the connection; show the card while
+  // it's connected, back in the folder that was open.
+  var opened = false;
+  Reader.onConnect(function () {
+    libSupported = null;  // The firmware may have been updated meanwhile
+    idle.hidden = true;
+    browser.hidden = false;
+    open(opened ? cwd : "/");
+    opened = true;
+  });
+  Reader.onDisconnect(function () {
+    browser.hidden = true;
+    idle.hidden = false;
+    busy = false;
+    browser.classList.remove("busy");
   });
 
   document.getElementById("refresh").addEventListener("click", function () { if (!busy) refresh(); });
@@ -692,9 +690,5 @@
     uploadFiles(e.dataTransfer.files);
   });
 
-  if (!UsbSend.supported) {
-    connectButton.disabled = true;
-    device.classList.add("bad");
-    device.textContent = "This browser can't use USB. Use Chrome or Edge on a computer.";
-  }
+  if (!UsbSend.supported) idle.textContent = "Use Chrome or Edge on a computer to manage your reader's files.";
 })();
