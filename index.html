@@ -3,39 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CrossInk Extras Installer</title>
-<meta name="description" content="Install an unofficial CrossInk build for the Xteink X3 and X4 Pro with a Reading Heatmap sleep screen, auto-hiding status bars and a Minimal Carousel theme.">
+<title>CrossInk Extras</title>
+<meta name="description" content="An unofficial CrossInk build for the Xteink X3 and X4 Pro, with a Reading Heatmap sleep screen, a Minimal Carousel home screen and auto-hiding status bars, plus browser tools to optimize books, manage files and see your reading stats over USB.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css?v=2">
+<script src="theme.js?v=1"></script>
 <script type="module" src="https://unpkg.com/esp-web-tools@10.4.0/dist/web/install-button.js?module"></script>
 <style>
-  :root {
-    --bg: #f6f5f1; --fg: #161614; --muted: #62625c; --faint: #8c8c85;
-    --card: #ffffff; --line: #dcdbd4; --bezel: #e4e3dd; --bezel-edge: #cfcec7;
-    --btn: #161614; --btn-fg: #f6f5f1;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #121211; --fg: #ecebe6; --muted: #a5a49d; --faint: #75746e;
-      --card: #1b1b19; --line: #2f2f2b; --bezel: #262624; --bezel-edge: #383834;
-      --btn: #ecebe6; --btn-fg: #121211;
-    }
-  }
-  * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--fg);
-    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-  a { color: inherit; text-underline-offset: 3px; }
-  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
-
-  header.top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 16px;
-    padding: 22px 0; font-size: 0.92rem; line-height: 1.6; color: var(--muted); }
-  header.top .mark { font-weight: 600; color: var(--fg); letter-spacing: 0.01em; text-decoration: none; }
-  header.top .mark span { display: inline-block; width: 10px; height: 10px; background: var(--fg);
-    margin-right: 8px; border-radius: 2px; vertical-align: 0; }
-  header.top nav a { color: var(--muted); }
-  header.top nav a[aria-current="page"] { color: var(--fg); text-decoration: none; }
+  body { font-size: 16px; line-height: 1.6; }
 
   h1, h2, h3 { font-family: "Newsreader", Georgia, "Times New Roman", serif; font-weight: 600; letter-spacing: -0.01em; }
   .hero { display: grid; grid-template-columns: 1.15fr 1fr; gap: 48px; align-items: start; padding: 40px 0 56px; }
@@ -160,14 +137,27 @@
   .screen figcaption .where { margin-top: 8px; font-size: 0.86rem; color: var(--fg); }
   .screen figcaption .where::before { content: "→ "; }
 
+  .hero .jump { margin: 22px 0 0; font-size: 0.95rem; color: var(--muted); }
+  .tools-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  a.tool-card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 22px; text-decoration: none; }
+  a.tool-card:hover { border-color: var(--fg); }
+  .tool-card h3 { font-size: 1.35rem; margin: 0 0 6px; }
+  .tool-card p { margin: 0 0 14px; color: var(--muted); font-size: 0.95rem; }
+  .tool-card ul { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 6px; font-size: 0.9rem; }
+  .tool-card li { position: relative; padding-left: 18px; }
+  .tool-card li::before { content: ""; position: absolute; left: 0; top: 0.75em; width: 8px; height: 1px;
+    background: var(--fg); }
+  .tool-card .open { margin-top: auto; font-weight: 600; font-size: 0.92rem; }
+  .tool-card .open::after { content: " →"; }
+
   ul.caveats { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; max-width: 760px; }
   ul.caveats li { padding-left: 22px; position: relative; }
   ul.caveats li::before { content: ""; position: absolute; left: 0; top: 0.72em; width: 8px; height: 1px; background: var(--fg); }
 
-  footer { border-top: 1px solid var(--line); padding: 28px 0 48px; color: var(--muted); font-size: 0.88rem; }
-  code { font-size: 0.9em; }
 
   @media (max-width: 820px) {
+    .tools-grid { grid-template-columns: 1fr; gap: 14px; }
     .hero { grid-template-columns: 1fr; gap: 32px; padding-top: 16px; }
     .hero > div:first-child { padding-top: 0; }
     .screens { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 20px;
@@ -179,10 +169,11 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="site">
   <header class="top">
     <a class="mark" href="./"><span></span>CrossInk extras</a>
-    <nav><a href="./" aria-current="page">Install firmware</a> · <a href="optimizer.html">EPUB Optimizer</a> · <a href="files.html">File Manager</a> · <a href="stats.html">Reading Stats</a> · <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.4.0">v1.4.0 on GitHub</a></nav>
+    <nav><a href="./" aria-current="page">Install firmware</a> · <a href="optimizer.html">EPUB Optimizer</a> · <a href="files.html">File Manager</a> · <a href="stats.html">Reading Stats</a> · <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.5.0">v1.5.0 on GitHub</a></nav>
+    <button class="theme-switch" type="button" id="themeSwitch" aria-label="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
   </header>
 
   <div class="hero">
@@ -190,8 +181,11 @@
       <div class="tag">Unofficial build · Xteink X3 &amp; X4 Pro</div>
       <h1>A few more reasons to pick up your reader.</h1>
       <p class="lede">An unofficial build of <a href="https://github.com/uxjulia/CrossInk">CrossInk</a> v1.6.1 with a
-        Reading Heatmap sleep screen, auto-hiding status bars and a Minimal Carousel home screen.
-        Install it from your browser in about a minute.</p>
+        Reading Heatmap sleep screen, a Minimal Carousel home screen and auto-hiding status bars, plus tools for your
+        computer to optimize books, organize them and see your reading stats. Install it from your browser in about a
+        minute.</p>
+      <p class="jump"><a href="#reader">On your reader</a> · <a href="#tools">On your computer</a> ·
+        <a href="#caveats">Good to know</a></p>
     </div>
     <div class="install">
       <div class="seg devicepick" role="group" aria-label="Your device">
@@ -205,7 +199,7 @@
         <li>Turn on the features you want (see below).</li>
       </ol>
       <div data-for="c3">
-        <esp-web-install-button manifest="manifest.json?v=1.4.0">
+        <esp-web-install-button manifest="manifest.json?v=1.5.0">
           <button class="go" slot="activate">Install</button>
           <p slot="unsupported" class="warn">This browser can't talk to USB devices. Use Chrome or Edge on a computer.</p>
           <p slot="not-allowed" class="warn">Installing needs a secure (https) page.</p>
@@ -244,9 +238,9 @@
     </div>
   </div>
 
-  <section>
+  <section id="reader">
     <div class="screens-head">
-      <h2>What's included</h2>
+      <h2>On your reader</h2>
       <div class="seg" role="group" aria-label="Show screens for">
         <button type="button" data-device="x3" aria-pressed="true">X3</button>
         <button type="button" data-device="x4pro" aria-pressed="false">X4 Pro</button>
@@ -278,9 +272,45 @@
       <button type="button" aria-label="Minimal Carousel"></button>
       <button type="button" aria-label="Auto-hide Status Bars"></button>
     </div>
-    <p class="credit">Also lets you see, export and back up your <a href="stats.html">reading stats</a> on a computer over
-      USB, and fixes a gap above the X3's top status bar in portrait and a crash from page-turn shortcuts at the end
-      of a book.</p>
+    <p class="credit">Also fixes a gap above the X3's top status bar in portrait and a crash from page-turn shortcuts at
+      the end of a book.</p>
+  </section>
+
+  <section id="tools">
+    <h2>On your computer</h2>
+    <p class="sub">Free tools that work with your reader over USB in Chrome or Edge. Nothing is uploaded.</p>
+    <div class="tools-grid">
+      <a class="tool-card" href="optimizer.html">
+        <h3>EPUB Optimizer</h3>
+        <p>Get books ready for the reader before you send them.</p>
+        <ul>
+          <li>Stable page numbers and split long chapters</li>
+          <li>Fixes garbled characters; sharper e-ink images</li>
+          <li>Pick chapter marks; send or replace on the reader, keeping its stats</li>
+        </ul>
+        <span class="open">Open EPUB Optimizer</span>
+      </a>
+      <a class="tool-card" href="files.html">
+        <h3>File Manager</h3>
+        <p>Your library, without taking the SD card out.</p>
+        <ul>
+          <li>Covers, titles and progress, as a list or grid</li>
+          <li>Rename and move books, keeping their stats</li>
+          <li>Folders, drag and drop, uploads and downloads</li>
+        </ul>
+        <span class="open">Open File Manager</span>
+      </a>
+      <a class="tool-card" href="stats.html">
+        <h3>Reading Stats</h3>
+        <p>Everything the reader tracks, on a big screen.</p>
+        <ul>
+          <li>Two-year reading calendar and streaks</li>
+          <li>When you read, and every book's pace</li>
+          <li>CSV export, backup and restore</li>
+        </ul>
+        <span class="open">Open Reading Stats</span>
+      </a>
+    </div>
   </section>
 
 
@@ -296,7 +326,7 @@
       <li><strong>Heatmap page numbers</strong> use CrossInk's stable page numbers, so run your EPUBs through the
         <a href="optimizer.html">EPUB Optimizer</a> here. Without it the page count stays blank.</li>
       <li><strong>USB-locked device?</strong> Download the <code>.bin</code> from the
-        <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.4.0">release</a> and use
+        <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.5.0">release</a> and use
         Settings → System → SD Card Firmware Update (needs CrossInk installed first).</li>
       <li><strong>English only</strong> for the new labels.</li>
       <li><strong>Unofficial.</strong> This is a fork of <a href="https://github.com/uxjulia/CrossInk">CrossInk</a>, so please
@@ -305,8 +335,8 @@
     </ul>
   </section>
 
-  <footer>
-    Built on <a href="https://github.com/uxjulia/CrossInk">CrossInk</a> ·
+  <footer class="site-foot">
+    CrossInk extras 1.5.0 · An unofficial build of <a href="https://github.com/uxjulia/CrossInk">CrossInk</a> ·
     Source on <a href="https://github.com/durgakulla/CrossInk/tree/feat/reading-heatmap-sleep">GitHub</a> ·
     Installer by <a href="https://github.com/esphome/esp-web-tools">ESP Web Tools</a>
   </footer>
@@ -434,7 +464,7 @@
   document.getElementById("x4proGo").addEventListener("click", function () {
     var button = this;
     button.disabled = true;
-    fetch("firmware/firmware-x4-pro.bin?v=1.4.0").then(function (r) {
+    fetch("firmware/firmware-x4-pro.bin?v=1.5.0").then(function (r) {
       if (!r.ok) throw new Error("Couldn't download the firmware (" + r.status + ").");
       return r.arrayBuffer();
     }).then(function (buf) {

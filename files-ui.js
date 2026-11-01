@@ -1,7 +1,9 @@
 // File manager for a CrossInk reader's SD card over USB (usb-send.js). Moves
 // and renames go through the reader's rename command, which keeps a book's
 // reading stats with it (firmware v1.3.0+); folders are moved by moving their
-// contents one by one so the books inside keep theirs too.
+// contents one by one so the books inside keep theirs too. With firmware
+// 1.5.0+ books show their cover, title, author and progress (the reader's own
+// saved thumbnails), as a list or a grid.
 (function () {
   "use strict";
 
@@ -17,11 +19,21 @@
   var selMove = document.getElementById("selMove");
   var selDelete = document.getElementById("selDelete");
   var upload = document.getElementById("upload");
+  var selRename = document.getElementById("selRename");
+  var libNote = document.getElementById("libNote");
+  var viewButtons = Array.prototype.slice.call(document.querySelectorAll("#view button"));
 
   var cwd = "/";
   var entries = [];
   var selected = new Set();
   var busy = false;
+  var library = new Map();   // Book path -> the reader's record for this folder
+  var libSupported = null;   // false on firmware older than 1.5.0
+  var covers = new Map();    // "path|size" -> object URL, kept for the visit
+  var coverRun = 0;          // Bumped to stop a folder's cover loading
+  var refs = new Map();      // Path -> {li, nameEl, entry} for the rendered items
+  var view = "list";
+  try { if (localStorage.getItem("crossink-files-view") === "grid") view = "grid"; } catch (e) { /* default */ }
 
   function join(folder, name) { return (folder === "/" ? "" : folder) + "/" + name; }
   function parentOf(path) { var i = path.lastIndexOf("/"); return i <= 0 ? "/" : path.slice(0, i); }
@@ -31,6 +43,24 @@
     if (bytes >= 1024) return Math.round(bytes / 1024) + " KB";
     return bytes + " B";
   }
+
+  function isBook(name) { return /\.(epub|xtch?|txt|md)$/i.test(name); }
+  function duration(seconds) {
+    var h = Math.floor(seconds / 3600);
+    var m = Math.floor((seconds % 3600) / 60);
+    if (h) return h + "h" + (m ? " " + m + "m" : "");
+    return m ? m + "m" : "<1m";
+  }
+  // "62% · 1h 33m", "Finished · 4h", or "" for a book never read.
+  function progressText(info) {
+    var parts = [];
+    if (info.completed) parts.push("Finished");
+    else if (info.progress != null) parts.push(Math.round(info.progress) + "%");
+    if (info.seconds > 0) parts.push(duration(info.seconds));
+    return parts.join(" · ");
+  }
+  function progressValue(info) { return info.completed ? 100 : info.progress != null ? info.progress : 0; }
+  function displayTitle(name, info) { return (info && info.title) || name.replace(/\.[^.]+$/, ""); }
 
   function friendly(e) {
     var text = (e && e.message) || String(e);
@@ -75,13 +105,77 @@
   async function open(path) {
     var ok = await run("Loading…", async function () {
       var items = await fs.list(path);
+      var books = new Map();
+      if (libSupported !== false && items.some(function (i) { return !i.folder && isBook(i.name); })) {
+        try {
+          (await fs.library(path)).forEach(function (b) { books.set(b.path, b); });
+          libSupported = true;
+        } catch (e) {
+          if (e.code !== "unknown_cmd") throw e;
+          libSupported = false;
+        }
+      }
       cwd = path;
       entries = items.sort(sortEntries);
+      library = books;
       selected.clear();
     });
     if (ok) {
       say("");
       render();
+      loadCovers();
+    }
+  }
+
+  // ---- Covers ------------------------------------------------------------
+
+  function coverKey(info) { return info.path + "|" + info.cover; }
+
+  // A book's cover: the reader's saved thumbnail once loaded, otherwise a
+  // tile with its title.
+  function coverElement(name, info, small) {
+    var box = document.createElement("span");
+    box.className = "cover" + (small ? " small" : "");
+    var url = info && info.cover > 0 ? covers.get(coverKey(info)) : null;
+    if (url) {
+      var img = document.createElement("img");
+      img.src = url;
+      img.alt = "";
+      box.appendChild(img);
+    } else {
+      box.classList.add("blank");
+      if (info && info.cover > 0) box.setAttribute("data-cover", coverKey(info));
+      if (!small) {
+        var text = document.createElement("span");
+        text.textContent = displayTitle(name, info);
+        box.appendChild(text);
+      }
+    }
+    return box;
+  }
+
+  // Fetches this folder's covers one at a time; operations the user starts
+  // run in between, and leaving the folder stops it.
+  async function loadCovers() {
+    var run = ++coverRun;
+    var wanted = Array.from(library.values()).filter(function (b) { return b.cover > 0 && !covers.has(coverKey(b)); });
+    for (var i = 0; i < wanted.length; i++) {
+      var blob = null;
+      try { blob = await fs.cover(wanted[i].path); } catch (e) { return; }
+      var key = coverKey(wanted[i]);
+      if (blob && !covers.has(key)) covers.set(key, URL.createObjectURL(blob));  // Kept even if the folder changed
+      if (run !== coverRun) return;
+      if (!blob) continue;
+      list.querySelectorAll(".cover[data-cover]").forEach(function (box) {
+        if (box.getAttribute("data-cover") !== key) return;
+        var img = document.createElement("img");
+        img.src = covers.get(key);
+        img.alt = "";
+        box.textContent = "";
+        box.classList.remove("blank");
+        box.removeAttribute("data-cover");
+        box.appendChild(img);
+      });
     }
   }
 
@@ -191,24 +285,46 @@
     var path = join(cwd, entry.name);
     var li = document.createElement("li");
     li.className = "row" + (entry.folder ? " folder" : "");
-    li.draggable = true;
 
     var check = document.createElement("input");
     check.type = "checkbox";
     check.checked = selected.has(path);
     check.setAttribute("aria-label", "Select " + entry.name);
-    check.addEventListener("change", function () {
-      if (check.checked) selected.add(path); else selected.delete(path);
-      renderSelection();
-    });
+    check.addEventListener("change", function () { toggle(path, check.checked); });
 
+    var info = entry.folder ? null : library.get(path);
     var icon = document.createElement("span");
     icon.className = "icon";
-    icon.innerHTML = entry.folder ? folderIcon() : fileIcon(entry.name);
+    if (info) icon.appendChild(coverElement(entry.name, info, true));
+    else icon.innerHTML = entry.folder ? folderIcon() : fileIcon(entry.name);
 
     var name = document.createElement(entry.folder ? "button" : "span");
     name.className = "name";
-    name.textContent = entry.name;
+    if (info) {
+      name.classList.add("book");
+      var title = document.createElement("span");
+      title.className = "title";
+      title.textContent = displayTitle(entry.name, info);
+      name.appendChild(title);
+      var meta = [info.author, info.title && info.title !== entry.name ? entry.name : ""].filter(Boolean).join(" · ");
+      if (meta) {
+        var sub = document.createElement("span");
+        sub.className = "sub";
+        sub.textContent = meta;
+        name.appendChild(sub);
+      }
+      var progress = progressText(info);
+      if (progress) {
+        var line = document.createElement("span");
+        line.className = "progress";
+        line.innerHTML = '<span class="track"><span class="fill"></span></span>';
+        line.querySelector(".fill").style.width = progressValue(info) + "%";
+        line.appendChild(document.createTextNode(progress));
+        name.appendChild(line);
+      }
+    } else {
+      name.textContent = entry.name;
+    }
     if (entry.folder) {
       name.type = "button";
       name.addEventListener("click", function () { if (!busy) open(path); });
@@ -240,13 +356,92 @@
     li.appendChild(actions);
     li.appendChild(panel);
 
+    draggable(li, path);
+    if (entry.folder) dropTarget(li, path);
+    refs.set(path, { li: li, nameEl: name, entry: entry });
+    return li;
+  }
+
+  // Grid view: a card per item. Clicking a book or file selects it; clicking a
+  // folder opens it. Actions come from the selection bar.
+  function renderCard(entry) {
+    var path = join(cwd, entry.name);
+    var info = entry.folder ? null : library.get(path);
+    var li = document.createElement("li");
+    li.className = "gcard" + (entry.folder ? " folder" : "") + (selected.has(path) ? " sel" : "");
+
+    var check = document.createElement("input");
+    check.type = "checkbox";
+    check.checked = selected.has(path);
+    check.setAttribute("aria-label", "Select " + entry.name);
+    check.addEventListener("click", function (e) { e.stopPropagation(); });
+    check.addEventListener("change", function () { toggle(path, check.checked); });
+
+    var art;
+    if (info) art = coverElement(entry.name, info, false);
+    else {
+      art = document.createElement("span");
+      art.className = "cover blank icon-art";
+      art.innerHTML = entry.folder ? folderIcon() : fileIcon(entry.name);
+    }
+
+    var title = document.createElement("span");
+    title.className = "t";
+    title.textContent = info ? displayTitle(entry.name, info) : entry.name;
+    li.appendChild(check);
+    li.appendChild(art);
+    li.appendChild(title);
+    var sub = entry.folder ? "Folder" : info ? (info.author || "") : formatBytes(entry.size);
+    if (sub) {
+      var a = document.createElement("span");
+      a.className = "a";
+      a.textContent = sub;
+      li.appendChild(a);
+    }
+    var progress = info ? progressText(info) : "";
+    if (progress) {
+      var p = document.createElement("span");
+      p.className = "p";
+      p.innerHTML = '<span class="track"><span class="fill"></span></span>';
+      p.querySelector(".fill").style.width = progressValue(info) + "%";
+      p.appendChild(document.createTextNode(progress));
+      li.appendChild(p);
+    }
+    li.title = entry.name;
+    li.tabIndex = 0;
+    function activate() {
+      if (busy) return;
+      if (entry.folder && !selected.size) open(path);
+      else toggle(path, !selected.has(path));
+    }
+    li.addEventListener("click", activate);
+    li.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(); }
+    });
+    draggable(li, path);
+    if (entry.folder) dropTarget(li, path);
+    refs.set(path, { li: li, nameEl: title, entry: entry });
+    return li;
+  }
+
+  function toggle(path, on) {
+    if (on) selected.add(path); else selected.delete(path);
+    var ref = refs.get(path);
+    if (ref) {
+      ref.li.classList.toggle("sel", on);
+      var box = ref.li.querySelector('input[type="checkbox"]');
+      if (box) box.checked = on;
+    }
+    renderSelection();
+  }
+
+  function draggable(li, path) {
+    li.draggable = true;
     li.addEventListener("dragstart", function (e) {
       if (!selected.has(path)) { selected.clear(); selected.add(path); renderSelection(); }
       e.dataTransfer.setData("text/x-crossink-paths", JSON.stringify(selectedItems()));
       e.dataTransfer.effectAllowed = "move";
     });
-    if (entry.folder) dropTarget(li, path);
-    return li;
   }
 
   function selectedItems() {
@@ -281,6 +476,7 @@
     input.value = entry.name;
     input.spellcheck = false;
     var dot = entry.folder ? -1 : entry.name.lastIndexOf(".");
+    input.addEventListener("click", function (e) { e.stopPropagation(); });  // Not a card click
     nameEl.replaceWith(input);
     input.focus();
     input.setSelectionRange(0, dot > 0 ? dot : entry.name.length);  // Name without its extension
@@ -386,18 +582,24 @@
   function renderSelection() {
     selbar.hidden = selected.size === 0;
     selCount.textContent = selected.size + " selected";
+    selRename.hidden = selected.size !== 1;
+    list.classList.toggle("selecting", selected.size > 0);
   }
 
   function render() {
     renderCrumbs();
     list.textContent = "";
+    refs.clear();
+    list.classList.toggle("grid", view === "grid");
+    viewButtons.forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-view") === view ? "true" : "false"); });
+    libNote.hidden = libSupported !== false;
     if (!entries.length) {
       var empty = document.createElement("li");
       empty.className = "empty";
       empty.textContent = "This folder is empty. Drop files here to upload them.";
       list.appendChild(empty);
     }
-    entries.forEach(function (entry) { list.appendChild(renderRow(entry)); });
+    entries.forEach(function (entry) { list.appendChild(view === "grid" ? renderCard(entry) : renderRow(entry)); });
     renderSelection();
   }
 
@@ -455,6 +657,17 @@
     input.addEventListener("blur", function () { finish(true); });
   });
   upload.addEventListener("change", function () { uploadFiles(upload.files); upload.value = ""; });
+  selRename.addEventListener("click", function () {
+    var ref = refs.get(Array.from(selected)[0]);
+    if (ref) startRename(ref.li, ref.nameEl, ref.entry, join(cwd, ref.entry.name));
+  });
+  viewButtons.forEach(function (b) {
+    b.addEventListener("click", function () {
+      view = b.getAttribute("data-view");
+      try { localStorage.setItem("crossink-files-view", view); } catch (e) { /* not saved */ }
+      if (!browser.hidden) render();
+    });
+  });
   selMove.addEventListener("click", function () {
     var items = selectedItems();
     showMovePicker(document.getElementById("selPanel"), items, function (dest) { moveMany(items, dest); });

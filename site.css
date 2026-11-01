@@ -1,0 +1,91 @@
+/* Shared by every page of CrossInk extras: colours, header, footer, page
+   heading and the basic controls. Page-specific styles stay in each page.
+   Dark colours follow the system unless the header switch set data-theme
+   on <html> (theme.js). */
+:root {
+  --bg: #f6f5f1; --fg: #161614; --muted: #62625c; --faint: #8c8c85;
+  --card: #ffffff; --line: #dcdbd4;
+  --btn: #161614; --btn-fg: #f6f5f1;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121211; --fg: #ecebe6; --muted: #a5a49d; --faint: #75746e;
+    --card: #1b1b19; --line: #2f2f2b;
+    --btn: #ecebe6; --btn-fg: #121211;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121211; --fg: #ecebe6; --muted: #a5a49d; --faint: #75746e;
+  --card: #1b1b19; --line: #2f2f2b;
+  --btn: #ecebe6; --btn-fg: #121211;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: inherit; text-underline-offset: 3px; }
+code { font-size: 0.9em; }
+[hidden] { display: none !important; }
+
+/* Layout: the header and footer span .site; tool content sits in .wrap. */
+.site { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+.wrap.wide { max-width: 1040px; }
+
+header.top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 16px;
+  padding: 22px 0; font-size: 0.92rem; line-height: 1.6; color: var(--muted); }
+header.top .mark { font-weight: 600; color: var(--fg); letter-spacing: 0.01em; text-decoration: none; }
+header.top .mark span { display: inline-block; width: 10px; height: 10px; background: var(--fg);
+  margin-right: 8px; border-radius: 2px; vertical-align: 0; }
+header.top nav a { color: var(--muted); }
+header.top nav a[aria-current="page"] { color: var(--fg); text-decoration: none; }
+header.top nav { margin-left: auto; }
+.theme-switch { flex: none; display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0;
+  border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--fg); cursor: pointer; }
+.theme-switch:hover { border-color: var(--fg); }
+.theme-switch svg { width: 16px; height: 16px; }
+/* Shows the mode a click switches to. */
+.theme-switch .sun, :root[data-theme-now="dark"] .theme-switch .moon { display: none; }
+:root[data-theme-now="dark"] .theme-switch .sun { display: block; }
+/* Narrow screens: the switch sits on the brand row and the menu wraps below. */
+@media (max-width: 700px) {
+  header.top .mark { order: -2; }
+  .theme-switch { order: -1; margin-left: auto; }
+  header.top nav { flex-basis: 100%; margin-left: 0; }
+}
+
+.serif, .page-head h1 { font-family: "Newsreader", Georgia, "Times New Roman", serif; font-weight: 600;
+  letter-spacing: -0.01em; }
+.page-head { padding: 6px 0 18px; }
+.page-head h1 { font-size: 2.1rem; line-height: 1.1; margin: 0 0 6px; }
+.page-head p { margin: 0; color: var(--muted); }
+
+footer.site-foot { margin-top: 40px; border-top: 1px solid var(--line); padding: 22px 0 40px; color: var(--muted);
+  font-size: 0.86rem; }
+
+/* Controls */
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.spacer { flex: 1; }
+button.go { background: var(--btn); color: var(--btn-fg); border: 0; border-radius: 9px; padding: 9px 18px;
+  font: inherit; font-weight: 600; cursor: pointer; }
+button.go:hover { opacity: 0.88; }
+button.go:disabled { opacity: 0.35; cursor: not-allowed; }
+.tool { font: inherit; font-size: 0.84rem; line-height: 1.4; white-space: nowrap; padding: 4px 10px;
+  border: 1px solid var(--fg); border-radius: 7px; background: transparent; color: var(--fg); cursor: pointer; }
+.tool:hover { background: var(--bg); }
+.tool.primary { background: var(--btn); color: var(--btn-fg); }
+.tool:disabled { opacity: 0.4; cursor: not-allowed; }
+label.tool input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.seg { display: inline-flex; border: 1px solid var(--fg); border-radius: 999px; padding: 2px; }
+.seg button { border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 0.85rem;
+  padding: 4px 12px; border-radius: 999px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--btn); color: var(--btn-fg); }
+
+.muted { color: var(--muted); }
+.bad { color: var(--fg) !important; border-left: 2px solid var(--fg); padding-left: 8px; }
+.notes { margin: 14px 0 0; padding-left: 18px; color: var(--muted); font-size: 0.82rem; }
+.notes li { margin: 3px 0; }

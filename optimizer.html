@@ -5,42 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EPUB Optimizer</title>
 <meta name="description" content="Optimize EPUBs for CrossInk in your browser: stable page numbers, split long chapters, e-ink images, repaired garbled characters and chapter marks.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css?v=2">
+<script src="theme.js?v=1"></script>
 <style>
-  :root {
-    --bg: #f6f5f1; --fg: #161614; --muted: #62625c; --faint: #8c8c85;
-    --card: #ffffff; --line: #dcdbd4;
-    --btn: #161614; --btn-fg: #f6f5f1;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #121211; --fg: #ecebe6; --muted: #a5a49d; --faint: #75746e;
-      --card: #1b1b19; --line: #2f2f2b;
-      --btn: #ecebe6; --btn-fg: #121211;
-    }
-  }
-  * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--fg);
-    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-  a { color: inherit; text-underline-offset: 3px; }
-  .wrap { max-width: 720px; margin: 0 auto; padding: 0 16px 32px; }
-
-  header.top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 16px;
-    padding: 22px 0; font-size: 0.92rem; line-height: 1.6; color: var(--muted); }
-  header.top .mark { font-weight: 600; color: var(--fg); letter-spacing: 0.01em; text-decoration: none; }
-  header.top .mark span { display: inline-block; width: 10px; height: 10px; background: var(--fg);
-    margin-right: 8px; border-radius: 2px; vertical-align: 0; }
-  header.top nav a { color: var(--muted); }
-  header.top nav a[aria-current="page"] { color: var(--fg); text-decoration: none; }
-  .site { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
-
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
   .row + .row { margin-top: 12px; }
-  .seg { display: inline-flex; border: 1px solid var(--fg); border-radius: 999px; padding: 2px; }
-  .seg button { border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 0.85rem;
-    padding: 4px 12px; border-radius: 999px; cursor: pointer; }
-  .seg button[aria-pressed="true"] { background: var(--btn); color: var(--btn-fg); }
   .opt { display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; cursor: pointer; white-space: nowrap; }
   .opt input { accent-color: var(--fg); margin: 0; }
   .opt input[type="range"] { width: 90px; }
@@ -50,7 +22,6 @@
     border-radius: 6px; background: var(--bg); color: var(--fg); }
   .opt select { font: inherit; font-size: 0.84rem; padding: 2px 4px; border: 1px solid var(--line); border-radius: 6px;
     background: var(--bg); color: var(--fg); }
-  .muted { color: var(--muted); }
 
   .drop { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: 200px;
     border: 1.5px dashed var(--faint); border-radius: 10px; padding: 10px 14px; cursor: pointer; color: var(--muted);
@@ -58,10 +29,6 @@
   .drop:hover, .drop.over { border-color: var(--fg); color: var(--fg); }
   .drop strong { color: var(--fg); }
   .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-  button.go { background: var(--btn); color: var(--btn-fg); border: 0; border-radius: 10px; padding: 11px 22px;
-    font: inherit; font-weight: 600; cursor: pointer; }
-  button.go:hover { opacity: 0.88; }
-  button.go:disabled { opacity: 0.35; cursor: not-allowed; }
 
   .queue { list-style: none; margin: 12px 0 0; padding: 0; }
   .queue:empty { display: none; }
@@ -115,8 +82,6 @@
   .marks-actions button.primary { background: var(--btn); color: var(--btn-fg); }
   .marks-actions button:disabled { opacity: 0.35; cursor: not-allowed; }
 
-  .notes { margin: 14px 0 0; padding-left: 18px; color: var(--muted); font-size: 0.82rem; }
-  .notes li { margin: 3px 0; }
 
   @media (max-width: 520px) { button.go { width: 100%; } }
 
@@ -128,10 +93,15 @@
 <div class="site">
   <header class="top">
     <a class="mark" href="./"><span></span>CrossInk extras</a>
-    <nav><a href="./">Install firmware</a> · <a href="optimizer.html" aria-current="page">EPUB Optimizer</a> · <a href="files.html">File Manager</a> · <a href="stats.html">Reading Stats</a> · <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.4.0">v1.4.0 on GitHub</a></nav>
+    <nav><a href="./">Install firmware</a> · <a href="optimizer.html" aria-current="page">EPUB Optimizer</a> · <a href="files.html">File Manager</a> · <a href="stats.html">Reading Stats</a> · <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.5.0">v1.5.0 on GitHub</a></nav>
+    <button class="theme-switch" type="button" id="themeSwitch" aria-label="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
   </header>
 </div>
 <div class="wrap">
+  <div class="page-head">
+    <h1>EPUB Optimizer</h1>
+    <p>Make books open fast, show accurate page numbers and look sharp on e-ink.</p>
+  </div>
 
   <div class="card">
     <div class="row">
@@ -172,14 +142,20 @@
   <ul class="notes">
     <li><strong>Chapter marks</strong> (under each book) set where the progress bars mark chapters; needs firmware
       v1.3.0+.</li>
-    <li><strong>Send to reader</strong> works over USB in Chrome or Edge: plug the reader in and leave it on its Home
-      screen. <strong>Replace on reader</strong> writes over a book already there, keeping its file name so the reader
+    <li><strong>Send to reader</strong> works over USB in Chrome or Edge, with the reader on its Home screen. <strong>Replace on reader</strong> writes over a book already there, keeping its file name so the reader
       keeps its reading stats; your place may shift if the chapters were split differently.</li>
     <li>Copying books another way? After replacing one, use <em>Delete Book Cache</em> in its menu.</li>
     <li>Start from the original book when you can. DRM-protected books can't be optimized.</li>
-    <li>Uses <a href="https://github.com/uxjulia/CrossInk">CrossInk</a>'s web-portal optimizer (MIT).
-      <a href="https://github.com/durgakulla/CrossInk/tree/feat/reading-heatmap-sleep">Source</a></li>
+    <li>Uses <a href="https://github.com/uxjulia/CrossInk">CrossInk</a>'s web-portal optimizer (MIT). Books are
+      optimized in your browser; nothing is uploaded.</li>
   </ul>
+</div>
+
+<div class="site">
+  <footer class="site-foot">
+    CrossInk extras 1.5.0 · An unofficial build of <a href="https://github.com/uxjulia/CrossInk">CrossInk</a> ·
+    Source on <a href="https://github.com/durgakulla/CrossInk/tree/feat/reading-heatmap-sleep">GitHub</a>
+  </footer>
 </div>
 
 <!-- Elements the CrossInk converter expects; kept hidden. -->
@@ -189,7 +165,7 @@
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/crossink-files.js?v=1"></script>
 <script src="chapter-marks.js?v=2"></script>
-<script src="usb-send.js?v=3"></script>
+<script src="usb-send.js?v=5"></script>
 <script src="optimizer.js?v=14"></script>
 </body>
 </html>

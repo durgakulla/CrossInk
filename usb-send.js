@@ -45,7 +45,7 @@
 
   function friendlyError(message) {
     if (/ERR:not_on_home/.test(message)) return "Open the Home screen on your reader, then try again.";
-    if (/ERR:unknown_cmd/.test(message)) return "This reader's firmware is too old for this. Install CrossInk extras 1.4.0 or newer.";
+    if (/ERR:unknown_cmd/.test(message)) return "This reader's firmware is too old for this. Install the latest CrossInk extras from this site.";
     if (/ERR:protected_path/.test(message)) return "That folder can't be written to. Choose another folder.";
     return message;
   }
@@ -176,7 +176,11 @@
       }
       var line = await this.readLineFrom(byte, Math.max(1, deadline - Date.now()));
       if (!line || isLogLine(line)) continue;
-      if (line.indexOf("ERR:") === 0) throw new Error(friendlyError(line));
+      if (line.indexOf("ERR:") === 0) {
+        var error = new Error(friendlyError(line));
+        error.code = line.split(":")[1];  // e.g. "unknown_cmd", "no_cover"
+        throw error;
+      }
       if (accept(line)) return line;
     }
   };
@@ -275,9 +279,10 @@
     await this.waitLine(function (l) { return l === "OK"; }, 5000, "create folder");
   };
 
-  // "CMND" + 'T' + path -> "READY", u32 size, the bytes, u32 CRC-32.
-  Link.prototype.readFile = async function (path, onProgress) {
-    await this.command("T", this.pathPayload(path));
+  // "CMND" + 'T' + path -> "READY", u32 size, the bytes, u32 CRC-32. The
+  // cover command ('C') answers the same way.
+  Link.prototype.readFile = async function (path, onProgress, letter) {
+    await this.command(letter || "T", this.pathPayload(path));
     await this.waitLine(function (l) { return l === "READY"; }, 10000, "start download");
     var sizeBytes = await this.readBytes(4, 10000);
     var size = (sizeBytes[0] | (sizeBytes[1] << 8) | (sizeBytes[2] << 16) | (sizeBytes[3] << 24)) >>> 0;
@@ -448,6 +453,34 @@
           if (!/crc/i.test(e.message)) throw e;
           l.drain();
           return l.readFile(card(path), onProgress);  // Log output can corrupt a read; try once more
+        }
+      });
+    },
+    // Firmware 1.5.0+: [{path, title, author, progress, seconds, sessions,
+    // completed, cover}] for the book files directly in a folder.
+    library: function (path) {
+      return queued(async function (l) {
+        await l.command("L", l.pathPayload(card(path)));
+        var books = [];
+        for (;;) {
+          var line = await l.waitLine(function (r) { return r === "END" || r.indexOf("BOOK:") === 0; }, 30000, "library");
+          if (line === "END") return books;
+          var book = JSON.parse(line.slice(5));
+          book.path = book.path.replace(/^\/sdcard/, "") || "/";
+          books.push(book);
+        }
+      });
+    },
+    // Firmware 1.5.0+: the book's saved cover thumbnail as a BMP Blob, or null.
+    cover: function (path) {
+      return queued(async function (l) {
+        try {
+          return new Blob([await l.readFile(card(path), null, "C")], { type: "image/bmp" });
+        } catch (e) {
+          if (e.code === "no_cover") return null;
+          if (!/crc/i.test(e.message)) throw e;
+          l.drain();
+          return null;  // A damaged thumbnail just shows the title tile
         }
       });
     },
