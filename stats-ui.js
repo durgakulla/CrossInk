@@ -45,6 +45,11 @@
     return seconds ? "<1m" : "0m";
   }
   function pace(book) {
+    // Same rule as the reader: stable pages for books it tracks that way (once
+    // 2 minutes are measured), otherwise page turns.
+    if (book.stableSeconds != null) {
+      return book.stableSeconds >= 120 && book.stablePages ? book.stablePages * 60 / book.stableSeconds : 0;
+    }
     return book.seconds > 60 && book.pages ? book.pages * 60 / book.seconds : 0;
   }
   function say(text, bad) {
@@ -167,7 +172,7 @@
       [duration(d.global.seconds), "Time read"],
       [d.global.completedBooks, "Books finished"],
       [d.global.sessions, "Sessions"],
-      [d.global.pages.toLocaleString(), "Pages turned"],
+      [d.global.pages.toLocaleString(), "Page turns"],
       [(d.global.currentStreak || 0) + "d", "Current streak"],
       [(d.global.longestStreak || 0) + "d", "Longest streak"],
     ].forEach(function (t) {
@@ -277,7 +282,7 @@
     { key: "title", label: "Book" },
     { key: "seconds", label: "Time read", n: true },
     { key: "sessions", label: "Sessions", n: true },
-    { key: "pages", label: "Pages", n: true },
+    { key: "pages", label: "Page turns", n: true },
     { key: "pace", label: "Pages/min", n: true },
     { key: "startDate", label: "Started" },
     { key: "finishedDate", label: "Finished" },
@@ -355,11 +360,11 @@
       v = v == null ? "" : String(v);
       return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
     };
-    var rows = [["Title", "Author", "Path", "Minutes read", "Sessions", "Pages", "Pages per minute", "Started",
+    var rows = [["Title", "Author", "Path", "Minutes read", "Sessions", "Page turns", "Pages per minute", "Stable pages read", "Started",
       "Finished", "Completed", "Progress %"]];
     d.books.forEach(function (b) {
       rows.push([b.title, b.author, b.path, Math.round(b.seconds / 60), b.sessions, b.pages,
-        pace(b) ? pace(b).toFixed(2) : "", b.startDate || "", b.finishedDate || "", b.completed ? "yes" : "no",
+        pace(b) ? pace(b).toFixed(2) : "", b.stablePages != null ? b.stablePages : "", b.startDate || "", b.finishedDate || "", b.completed ? "yes" : "no",
         b.completed ? 100 : b.progress != null ? Math.round(b.progress) : ""]);
     });
     return rows.map(function (r) { return r.map(quote).join(","); }).join("\n") + "\n";
