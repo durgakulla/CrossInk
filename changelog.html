@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Changelog</title>
+<meta name="description" content="What's new in each CrossInk extras release: firmware for the Xteink X3 and X4 Pro, and the tools on this site.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css?v=4">
+<script src="theme.js?v=1"></script>
+<style>
+  .release { position: relative; padding: 0 0 26px 26px; border-left: 1px solid var(--line); margin-left: 5px; }
+  .release:last-child { padding-bottom: 0; }
+  .release::before { content: ""; position: absolute; left: -6px; top: 9px; width: 11px; height: 11px; border-radius: 50%;
+    background: var(--bg); border: 1.5px solid var(--fg); }
+  .release.latest::before { background: var(--fg); }
+  .release header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 6px; }
+  .release h2 { font-family: "Newsreader", Georgia, serif; font-weight: 600; font-size: 1.55rem; margin: 0;
+    letter-spacing: -0.01em; }
+  .release time, .release .kind { color: var(--muted); font-size: 0.86rem; }
+  .badge { border: 1px solid var(--fg); border-radius: 999px; padding: 0 9px; font-size: 0.76rem; line-height: 1.6; }
+  .release h3 { font-size: 0.92rem; margin: 14px 0 4px; }
+  .release ul { margin: 0; padding-left: 18px; }
+  .release li { margin: 3px 0; }
+  .release .links { margin: 12px 0 0; font-size: 0.86rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="site">
+  <header class="top">
+    <a class="mark" href="./"><span></span>CrossInk extras</a>
+    <nav><a href="./">Install firmware</a> · <a href="optimizer.html">EPUB Optimizer</a> · <a href="files.html">File Manager</a> · <a href="stats.html">Reading Stats</a> · <a href="changelog.html" aria-current="page">Changelog</a></nav>
+    <button class="theme-switch" type="button" id="themeSwitch" aria-label="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+  </header>
+</div>
+<div class="wrap">
+  <div class="page-head">
+    <h1>Changelog</h1>
+    <p>What's new on your reader and on this site. Every firmware release is CrossInk 1.6.1 plus these extras.</p>
+  </div>
+
+  <article class="release">
+    <header><h2>Site update</h2><time datetime="2026-11-01T03:01:11Z"></time><span class="kind">Website only</span></header>
+    <ul>
+      <li>The EPUB Optimizer, File Manager and Reading Stats share one reader connection: connect once, and each page
+        reconnects by itself, including after you unplug and replug the reader.</li>
+      <li>A reader strip on those pages shows the device and its firmware, with an update link when a newer extras
+        release is out.</li>
+      <li>This changelog.</li>
+    </ul>
+  </article>
+
+  <article class="release latest">
+    <header><h2>1.5.0</h2><time datetime="2026-11-01T02:47:05Z"></time><span class="badge">Latest</span></header>
+    <h3>File Manager library</h3>
+    <ul>
+      <li>Books show their cover (the thumbnail your reader saved), title, author, reading progress and time read, as a
+        list or a cover grid.</li>
+      <li>Books the reader hasn't shown yet get a title tile until they appear on its Home or Library screen.</li>
+      <li>Select a card to rename, move or delete it.</li>
+    </ul>
+    <h3>Site</h3>
+    <ul>
+      <li>One home page for everything on your reader and your computer, a shared look across the tools, and a
+        light/dark switch.</li>
+    </ul>
+    <p class="links"><a href="./#install">Install</a> ·
+      <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.5.0">Release and downloads</a></p>
+  </article>
+
+  <article class="release">
+    <header><h2>1.4.0</h2><time datetime="2026-10-30T19:19:31Z"></time></header>
+    <h3>Reading Stats</h3>
+    <ul>
+      <li>A new <a href="stats.html">Reading Stats</a> page connects over USB and shows your reading history, streaks,
+        time-of-day and weekday patterns and per-book stats.</li>
+      <li>Export them as CSV, back them up to a file, or restore a backup. The reader checks the whole backup before
+        changing anything, and restarts when it's done.</li>
+    </ul>
+    <p class="links"><a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.4.0">Release and downloads</a></p>
+  </article>
+
+  <article class="release">
+    <header><h2>1.3.0</h2><time datetime="2026-10-30T05:28:30Z"></time></header>
+    <h3>Chapter marks</h3>
+    <ul>
+      <li>Smarter automatic marks: progress bars use the table-of-contents level with a sensible number of entries, so
+        books divided into a few parts mark their chapters instead of only the parts.</li>
+      <li>Choose your own in the <a href="optimizer.html">EPUB Optimizer</a>'s chapter-mark editor; they're saved inside
+        the book.</li>
+    </ul>
+    <h3>Organize books over USB</h3>
+    <ul>
+      <li>Renaming or moving a book over USB keeps its reading stats, position and settings. Use it from the new
+        <a href="files.html">File Manager</a>, or the optimizer's Replace on reader.</li>
+    </ul>
+    <h3>Clearer version name</h3>
+    <ul>
+      <li>The reader shows "1.6.1-extras 1.3.0" instead of a development build name.</li>
+    </ul>
+    <p class="links"><a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.3.0">Release and downloads</a></p>
+  </article>
+
+  <article class="release">
+    <header><h2>1.2.0</h2><time datetime="2026-10-29T15:53:16Z"></time></header>
+    <h3>Minimal Carousel</h3>
+    <ul>
+      <li>The book in the middle gets the Reading Heatmap's detailed progress bar: time read, time left in the chapter
+        and the book, pages per minute, percent and page, chapter marks, and the start and (estimated) finish dates.</li>
+    </ul>
+    <h3>Reading Heatmap</h3>
+    <ul>
+      <li>Chapter marks show up for books whose chapters share a file or sit under a single title entry in the table of
+        contents (common in Project Gutenberg EPUBs).</li>
+    </ul>
+    <p class="links"><a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.2.0">Release and downloads</a></p>
+  </article>
+
+  <article class="release">
+    <header><h2>1.1.0</h2><time datetime="2026-10-29T04:12:17Z"></time></header>
+    <h3>Reading Heatmap</h3>
+    <ul>
+      <li>Today's date at the top, with a moon icon, so it doubles as a "last used" date.</li>
+      <li>A slightly smaller cover so all seven weekday labels fit, and a stats row spaced so long labels don't collide.</li>
+      <li>Available on devices with a clock chip: X3, X4 Pro and X4 Classic.</li>
+    </ul>
+    <h3>X4 Pro</h3>
+    <ul>
+      <li>A firmware build for the Xteink X4 Pro. Untested on a real device.</li>
+    </ul>
+    <p class="links"><a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.1.0">Release and downloads</a></p>
+  </article>
+
+  <article class="release">
+    <header><h2>1.0.0</h2><span class="kind">First release</span></header>
+    <ul>
+      <li><strong>Reading Heatmap</strong> sleep screen: your current book's cover and progress above a calendar of the
+        last five months, shaded by minutes read each day, with streaks, books finished and time read.</li>
+      <li><strong>Minimal Carousel</strong> home screen: your three latest books as a cover carousel.</li>
+      <li><strong>Auto-hide Status Bars</strong>: just the text on the page, with a shortcut that shows the bars for five
+        seconds.</li>
+    </ul>
+  </article>
+</div>
+
+<div class="site">
+  <footer class="site-foot">
+    CrossInk extras 1.5.0 · An unofficial build of <a href="https://github.com/uxjulia/CrossInk">CrossInk</a> ·
+    Source on <a href="https://github.com/durgakulla/CrossInk/tree/feat/reading-heatmap-sleep">GitHub</a>
+  </footer>
+</div>
+
+<script>
+  // Release dates in the visitor's own time zone.
+  document.querySelectorAll(".release time").forEach(function (t) {
+    t.textContent = new Date(t.getAttribute("datetime")).toLocaleDateString(undefined,
+      { year: "numeric", month: "long", day: "numeric" });
+  });
+</script>
+</body>
+</html>
