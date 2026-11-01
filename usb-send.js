@@ -543,6 +543,25 @@
         return records[0] || null;
       });
     },
+    // Firmware 1.6.0+: every book's stats in one stream. Calls onBook(record)
+    // for each book with stats and onScan(folders) as the reader walks its
+    // card; resolves to the paths of every EPUB/XTC book on it.
+    allBooks: function (onBook, onScan) {
+      return queued(async function (l) {
+        await l.command("Q", []);
+        var paths = [];
+        for (;;) {
+          var line = await l.waitLine(function (r) { return r === "END" || /^(STATS|PATH|SCAN):/.test(r); }, 30000, "book stats");
+          if (line === "END") return paths;
+          if (line.indexOf("PATH:") === 0) paths.push(line.slice(5));
+          else if (line.indexOf("SCAN:") === 0) { if (onScan) onScan(Number(line.slice(5))); }
+          else {
+            var record = JSON.parse(line.slice(6));
+            if (record.type === "book" && onBook) onBook(record);
+          }
+        }
+      });
+    },
     // Uploads a JSON Lines backup and restores it; the reader restarts after.
     restore: function (jsonl, onProgress) {
       return queued(async function (l) {

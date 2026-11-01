@@ -71,23 +71,74 @@
 
   // ---- Loading -----------------------------------------------------------
 
-  async function loadFromReader() {
+  // Loads everything from the reader. onUpdate(d, booksOnly) shows partial
+  // results: first the overall stats, then books as they arrive (books still
+  // shown from the last load stay until the reader has been read).
+  async function loadFromReader(onUpdate) {
     say("Reading stats…");
     var g = await UsbSend.stats.global();
-    say("Finding books…");
-    var paths = (await UsbSend.listBooks()).map(function (b) { return b.path; })
-      .filter(function (p) { return /\.(epub|xtch?)$/i.test(p); });
-    cardBooks = new Set(paths);
-    var books = [];
-    for (var i = 0; i < paths.length; i++) {
-      say("Reading book " + (i + 1) + " of " + paths.length + "…");
-      var record = await UsbSend.stats.book(paths[i]);
-      if (record) books.push(record);
-    }
-    return {
+    var d = {
       format: "crossink-stats", version: 1, exported: new Date().toISOString(),
-      meta: g.meta, global: g.global, daily: g.daily, books: books,
+      meta: g.meta, global: g.global, daily: g.daily, books: [],
     };
+    var known = new Map();
+    if (onUpdate && data) data.books.forEach(function (b) { known.set(b.path, b); });
+    var fresh = new Map();
+    var lastUpdate = 0;
+    function addBook(record) {
+      fresh.set(record.path, record);
+      known.set(record.path, record);
+      if (onUpdate && Date.now() - lastUpdate > 250) {
+        lastUpdate = Date.now();
+        d.books = Array.from(known.values());
+        onUpdate(d, true);
+      }
+    }
+    if (onUpdate) { d.books = Array.from(known.values()); onUpdate(d, false); }
+
+    var paths;
+    try {
+      // Firmware 1.6.0+: one stream for every book.
+      say("Reading book stats…");
+      paths = await UsbSend.stats.allBooks(addBook, function (folders) {
+        say("Reading book stats… (" + folders + " folder" + (folders === 1 ? "" : "s") + ")");
+      });
+    } catch (e) {
+      if (e.code !== "unknown_cmd") throw e;
+      // Older firmware: list the card, then ask for each book.
+      say("Finding books…");
+      paths = (await UsbSend.listBooks()).map(function (b) { return b.path; })
+        .filter(function (p) { return /\.(epub|xtch?)$/i.test(p); });
+      for (var i = 0; i < paths.length; i++) {
+        say("Reading book " + (i + 1) + " of " + paths.length + "…");
+        var record = await UsbSend.stats.book(paths[i]);
+        if (record) addBook(record);
+      }
+    }
+    cardBooks = new Set(paths);
+    d.books = Array.from(fresh.values());
+    return d;
+  }
+
+  // The last stats loaded from a reader, shown straight away next time.
+  var CACHE_KEY = "crossink-stats-last";
+  function saveLast(d) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(d)); } catch (e) { /* not kept */ }
+  }
+  function loadLast() {
+    try {
+      var d = JSON.parse(localStorage.getItem(CACHE_KEY));
+      return validBackup(d) ? d : null;
+    } catch (e) { return null; }
+  }
+  function ago(iso) {
+    var minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (minutes < 2) return "just now";
+    if (minutes < 60) return minutes + " minutes ago";
+    var hours = Math.round(minutes / 60);
+    if (hours < 24) return hours + " hour" + (hours === 1 ? "" : "s") + " ago";
+    var days = Math.round(hours / 24);
+    return days + " day" + (days === 1 ? "" : "s") + " ago";
   }
 
   function validBackup(d) {
@@ -383,9 +434,13 @@
     busy = true;
     connectButton.disabled = true;
     try {
-      var d = await loadFromReader();
+      var d = await loadFromReader(function (partial, booksOnly) {
+        if (booksOnly) { data = partial; renderBooks(partial); }
+        else show(partial, "Updating from your reader…");
+      });
       show(d, "From your reader" + (d.meta && d.meta.firmware ? " (firmware " + d.meta.firmware + ")" : "") +
         (d.meta && d.meta.today ? " · today is " + shortDate(d.meta.today) : ""));
+      saveLast(d);
       say("Loaded from your reader");
       connectButton.textContent = "Refresh";
     } catch (e) {
@@ -439,6 +494,9 @@
   saveCsv.addEventListener("click", function () {
     if (data) download("CrossInk books " + isoDay(new Date()) + ".csv", csv(data), "text/csv");
   });
+
+  var last = loadLast();
+  if (last) show(last, "Last loaded from your reader " + ago(last.exported) + ".");
 
   if (!UsbSend.supported) {
     connectButton.disabled = true;
