@@ -1195,6 +1195,20 @@ Commands (`CMND` + letter; paths as in the other commands):
   stats held in memory don't overwrite the restored ones. Books are matched by
   path; records for books not on the card are counted as `skipped`.
 
+Library commands (firmware 1.5.0+), used by the File Manager's library view:
+
+- `L` + folder path: a `BOOK:{json}` line for each EPUB, XTC, TXT or Markdown
+  file directly in that folder, then `END`. Fields: `path`, `title` and
+  `author` (from the book's saved metadata; empty for a book the reader has
+  never opened), `progress` (percent or null), `seconds`, `sessions` and
+  `completed` (when the book has stats), and `cover`: the byte size of its saved
+  cover thumbnail, or `0`.
+- `C` + book path: sends that book's saved cover thumbnail like `T` sends a
+  file (`READY`, u32 size, the bytes, u32 CRC-32), or replies `ERR:no_cover`.
+  The thumbnail is the largest `thumb_<w>x<h>.bmp` (a 1-bit BMP; letterboxed
+  `_fit` variants are skipped) in the book's cache folder, made when the book
+  appears on Home or in the Library.
+
 Records (`type` field):
 
 - `meta`: `format` (`"crossink-stats"`), `version` (`1`), and on export

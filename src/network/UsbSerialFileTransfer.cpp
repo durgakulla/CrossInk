@@ -14,6 +14,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "CrossPointSettings.h"
 #include "SilentRestart.h"
@@ -687,6 +688,8 @@ void handleRename() {
   }
 }
 
+void sendFile(const char* path);
+
 void handleRead() {
   char path[PATH_BUFFER_SIZE];
   if (!readNormalizedPath(path, sizeof(path))) return;
@@ -702,6 +705,11 @@ void handleRead() {
     return;
   }
 
+  sendFile(path);
+}
+
+// Sends a file as READY, u32 size, the bytes, then their u32 CRC-32.
+void sendFile(const char* path) {
   HalFile file;
   if (!Storage.openFileForRead("USB", path, file)) {
     writeLine("ERR:fopen\n");
@@ -734,6 +742,62 @@ void handleRead() {
   }
   file.close();
   writeLe32(crc);
+}
+
+// The File Manager's library view: a "BOOK:{json}" line for each book file
+// directly in a folder, then "END" (see StatsTransfer::writeLibraryEntry).
+void handleLibrary() {
+  char path[PATH_BUFFER_SIZE];
+  if (!readNormalizedPath(path, sizeof(path))) return;
+  if (!ensureFileTransferAllowed()) return;
+  if (isProtectedPath(path) || !FsHelpers::directoryCanBeEnumerated(path)) {
+    writeLine("ERR:list_failed\n");
+    return;
+  }
+  // Collect the names first so describing a book (which opens its cache
+  // files) never happens while the folder is open.
+  std::vector<std::string> books;
+  HalFile root = Storage.open(path);
+  if (!root || !root.isDirectory()) {
+    if (root) root.close();
+    writeLine("ERR:opendir\n");
+    return;
+  }
+  HalFile file = root.openNextFile();
+  while (file) {
+    char name[PATH_BUFFER_SIZE];
+    file.getName(name, sizeof(name));
+    if (!file.isDirectory() && !isProtectedPathSegment(name)) books.emplace_back(name);
+    file.close();
+    yield();
+    file = root.openNextFile();
+  }
+  root.close();
+
+  const std::string folder = strcmp(path, "/") == 0 ? std::string{} : std::string{path};
+  for (const std::string& name : books) {
+    const std::string bookPath = folder + "/" + name;
+    StatsTransfer::writeLibraryEntry(bookPath.c_str(), logSerial);
+    yield();
+  }
+  writeLine("END\n");
+}
+
+// Sends a book's saved cover thumbnail (a 1-bit BMP) like T sends a file.
+void handleCover() {
+  char path[PATH_BUFFER_SIZE];
+  if (!readNormalizedPath(path, sizeof(path))) return;
+  if (!ensureFileTransferAllowed()) return;
+  if (isProtectedPath(path)) {
+    writeLine("ERR:protected_path\n");
+    return;
+  }
+  const std::string thumb = StatsTransfer::coverThumbPath(path);
+  if (thumb.empty()) {
+    writeLine("ERR:no_cover\n");
+    return;
+  }
+  sendFile(thumb.c_str());
 }
 
 // Reading stats as JSON lines ("STATS:{...}"), then "END" (see StatsTransfer).
@@ -806,6 +870,12 @@ void handleCommand() {
       break;
     case 'G':
       handleStatsGlobal();
+      break;
+    case 'L':
+      handleLibrary();
+      break;
+    case 'C':
+      handleCover();
       break;
     case 'B':
       handleStatsBook();

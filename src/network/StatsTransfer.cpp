@@ -227,6 +227,68 @@ void writeGlobalStats(Print& out) {
   writeRecord(record, out);
 }
 
+std::string coverThumbPath(const char* path, uint32_t* size) {
+  const std::string cachePath = statsCachePathFor(path ? path : "");
+  if (cachePath.empty()) return {};
+  HalFile dir = Storage.open(cachePath.c_str());
+  if (!dir || !dir.isDirectory()) {
+    if (dir) dir.close();
+    return {};
+  }
+  std::string best;
+  uint32_t bestSize = 0;
+  char name[64];
+  HalFile file = dir.openNextFile();
+  while (file) {
+    file.getName(name, sizeof(name));
+    const size_t length = strlen(name);
+    // thumb_<w>x<h>.bmp; the "_fit" variants are letterboxed for Home themes.
+    const bool isThumb = strncmp(name, "thumb_", 6) == 0 && length > 10 && strcmp(name + length - 4, ".bmp") == 0 &&
+                         strstr(name, "_fit") == nullptr;
+    if (isThumb && file.size() > bestSize) {
+      bestSize = static_cast<uint32_t>(file.size());
+      best = cachePath + "/" + name;
+    }
+    file.close();
+    file = dir.openNextFile();
+  }
+  dir.close();
+  if (size) *size = bestSize;
+  return best;
+}
+
+bool writeLibraryEntry(const char* path, Print& out) {
+  const std::string bookPath = path ? path : "";
+  const bool txt = FsHelpers::hasTxtExtension(bookPath) || FsHelpers::hasMarkdownExtension(bookPath);
+  const std::string cachePath = statsCachePathFor(bookPath);
+  if (cachePath.empty() && !txt) return false;
+
+  const RecentBook book = RECENT_BOOKS.getDataFromBook(bookPath);
+  JsonDocument record;
+  record["path"] = bookPath;
+  record["title"] = book.title;
+  record["author"] = book.author;
+  const float progress = RecentBookProgress::loadPercent(book);
+  if (RecentBookProgress::hasPercent(progress)) {
+    record["progress"] = progress;
+  } else {
+    record["progress"] = nullptr;
+  }
+  if (!cachePath.empty() && Storage.exists(cachePath.c_str())) {
+    const BookReadingStats stats = BookReadingStats::load(cachePath);
+    record["seconds"] = stats.totalReadingSeconds;
+    record["sessions"] = stats.sessionCount;
+    record["completed"] = stats.isCompleted;
+  }
+  uint32_t coverSize = 0;
+  coverThumbPath(path, &coverSize);
+  record["cover"] = coverSize;
+  out.print("BOOK:");
+  serializeJson(record, out);
+  out.print("\n");
+  return true;
+}
+
 bool writeBookStats(const char* path, Print& out) {
   const std::string bookPath = path ? path : "";
   const std::string cachePath = statsCachePathFor(bookPath);

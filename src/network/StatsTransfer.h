@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 class Print;
 
@@ -16,6 +17,16 @@ void writeGlobalStats(Print& out);
 // Writes one "STATS:{json}" book record for the book at path. Returns false,
 // writing nothing, when the book has no stats or stats tracking is off for it.
 bool writeBookStats(const char* path, Print& out);
+
+// Writes one "BOOK:{json}" line describing a book file for the File Manager's
+// library view: title, author, progress, time read and the size of its saved
+// cover thumbnail (0 when it has none). Returns false for non-book files.
+bool writeLibraryEntry(const char* path, Print& out);
+
+// The book's best saved cover thumbnail (the largest non-letterboxed one), or
+// an empty string when the reader hasn't made one yet. Sets *size to its byte
+// size when given.
+std::string coverThumbPath(const char* path, uint32_t* size = nullptr);
 
 struct ImportResult {
   bool ok = false;
