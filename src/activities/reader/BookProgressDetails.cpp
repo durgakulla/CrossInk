@@ -379,6 +379,7 @@ void loadBookProgressDetails(const std::string& path, const BookReadingStats& st
     pace.tracked = pace.tracked || details.stablePageNumbers;
   }
   details.hasPagesPerMinute = readingPagesPerMinute(stats, pace, details.pagesPerMinute);
+  details.pacedInStablePages = pace.tracked;
   // The reader's stored pace needs a few page samples before it is trusted.
   if (stats.avgSecondsPerForwardPage > 0 && stats.paceSampleCount >= 3) {
     details.chapterTimeLeftSeconds = chapterPagesLeft * stats.avgSecondsPerForwardPage;

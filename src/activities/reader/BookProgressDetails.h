@@ -23,6 +23,7 @@ struct BookProgressDetails {
   bool stablePageNumbers = false;  // EPUB with stable page numbers: pace is in stable pages
   bool hasPagesPerMinute = false;  // Pace to show (see readingPagesPerMinute in StablePace.h)
   float pagesPerMinute = 0.0f;
+  bool pacedInStablePages = false;          // pagesPerMinute counts stable pages, not screens turned
   uint32_t timeLeftSeconds = 0;             // Estimated time to finish; 0 when unknown
   uint32_t chapterTimeLeftSeconds = 0;      // Estimated time to finish the chapter; 0 when unknown
   ReadingStatsDate startDate;               // Invalid when unknown

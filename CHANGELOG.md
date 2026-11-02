@@ -13,6 +13,8 @@
 
 ### Changed
 
+- Book time left uses stable pages for books with stable page numbers (run through the EPUB Optimizer): it's the stable pages left at your measured time per stable page, so it no longer depends on how the current chapter's page size compares with the rest of the book. It applies once about two minutes of reading have been measured, the same as stable pages per minute; until then, and for other books, it's estimated as before. Time left in the chapter is unchanged.
+- Pace labels say which pages they count: "pg/min" (Pg/Min on the stats screens) for stable pages, and "scr/min" (Scr/Min) for screens turned, on the Reading Heatmap and Minimal Carousel progress bars, the Book Stats screens and the Dashboard theme. The all-books pace on Book Stats is always Scr/Min.
 - CrossInk extras firmware reports its version as both releases, e.g. "1.6.1-extras 1.3.0", on the boot screen, the update screen and the web portal, instead of a development build name. Over-the-air update checks still compare only the CrossInk version.
 - Chapter marks on the Reading Heatmap and Minimal Carousel progress bars now use the table-of-contents level with a sensible number of entries (5 to 50), so books divided into a few parts mark their chapters instead of only the parts. Books can also carry their own chapter marks, chosen in the EPUB optimizer's chapter-mark editor and saved as `META-INF/crossink/chapter-marks.json`.
 - Lyra Carousel and Minimal Carousel: the reading progress under the cover now shows the estimated time left at the top right of the progress line, and the percentage read centred below the line.

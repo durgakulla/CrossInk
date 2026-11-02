@@ -10,8 +10,6 @@ namespace {
 constexpr const char* kFileName = "/stable_pace.bin";
 constexpr uint8_t kVersion = 1;
 constexpr size_t kFileSize = 9;  // [0] version, [1-4] pages, [5-8] seconds (uint32_t LE)
-// Stable pace shows once this much reading has been measured.
-constexpr uint32_t kMinStableSeconds = 120;
 // Turn pace keeps the book stats screens' existing threshold.
 constexpr uint32_t kMinTurnSeconds = 60;
 
@@ -88,7 +86,7 @@ void StablePace::add(const uint32_t stablePages, const uint32_t turnSeconds) {
 
 bool readingPagesPerMinute(const BookReadingStats& stats, const StablePace& pace, float& out) {
   if (pace.tracked) {
-    if (pace.seconds < kMinStableSeconds) return false;
+    if (pace.seconds < StablePace::kMinSeconds) return false;
     out = static_cast<float>(pace.pages) * 60.0f / static_cast<float>(pace.seconds);
     return true;
   }

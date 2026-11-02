@@ -12,8 +12,13 @@ struct StablePace {
   uint32_t pages = 0;
   uint32_t seconds = 0;
   // The book has stable page numbers (the file exists), so its pace is shown
-  // in stable pages; see pagesPerMinute().
+  // in stable pages; see readingPagesPerMinute().
   bool tracked = false;
+  // Stable pace shows once this much reading has been measured.
+  static constexpr uint32_t kMinSeconds = 120;
+
+  // Enough stable reading measured to show a pace or time left from it.
+  bool ready() const { return tracked && pages > 0 && seconds >= kMinSeconds; }
 
   // Untracked (default) stats when the file is missing or invalid.
   static StablePace load(const std::string& cachePath);

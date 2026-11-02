@@ -219,8 +219,10 @@ void drawStatsRow(const GfxRenderer& renderer, const int rightX, const int y, co
 }
 
 // Pace for the stats block: stable pages for EPUBs whose pace the reader
-// tracks in stable pages (StablePace.h), otherwise page turns.
-void formatPagesPerMinute(const std::string& bookPath, const BookReadingStats& stats, char* buf, const size_t len) {
+// tracks in stable pages (StablePace.h), otherwise screens turned. Returns
+// the matching label.
+const char* formatPagesPerMinute(const std::string& bookPath, const BookReadingStats& stats, char* buf,
+                                 const size_t len) {
   const StablePace pace = FsHelpers::hasEpubExtension(bookPath)
                               ? StablePace::load(Epub::cachePathForFilePath(bookPath, "/.crosspoint"))
                               : StablePace{};
@@ -230,6 +232,7 @@ void formatPagesPerMinute(const std::string& bookPath, const BookReadingStats& s
   } else {
     snprintf(buf, len, "-");
   }
+  return pace.tracked ? tr(STR_STATS_PAGES_PER_MIN) : tr(STR_STATS_SCREENS_PER_MIN);
 }
 
 void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, const BookReadingStats* stats,
@@ -301,8 +304,8 @@ void drawDashboardStats(const GfxRenderer& renderer, const Rect& coverRect, cons
   }
 
   rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);
-  formatPagesPerMinute(bookPath, bookStats, value, sizeof(value));
-  drawStatsRow(renderer, rightX, rowY, value, tr(STR_STATS_PAGES_PER_MIN), black);
+  const char* paceLabel = formatPagesPerMinute(bookPath, bookStats, value, sizeof(value));
+  drawStatsRow(renderer, rightX, rowY, value, paceLabel, black);
 
   if (!showRtcStats) {
     rowY = statsBlockTop(coverRect, ++rowIndex, blockH, rowCount);

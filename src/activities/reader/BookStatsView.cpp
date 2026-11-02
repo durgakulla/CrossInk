@@ -189,7 +189,7 @@ bool cachedEstimatedTimeLeft(const BookReadingStats& stats, uint32_t& seconds) {
   return seconds > 0;
 }
 
-// Pace for the per-book card: stable pages when tracked, else page turns.
+// Pace for the per-book card: stable pages when tracked, else screens turned.
 void formatBookPagesPerMinute(const BookReadingStats& stats, const StablePace& pace, char* buf, const size_t len) {
   float perMinute = 0.0f;
   if (readingPagesPerMinute(stats, pace, perMinute)) {
@@ -322,7 +322,7 @@ void drawPerBookStatsCard(GfxRenderer& renderer, const int x, const int y, const
 
   formatBookPagesPerMinute(stats, pace, buf, sizeof(buf));
   drawStatCell(renderer, x + thirdW * 2, thirdW, y + layout.topCardTitleH + rowH, rowH, buf,
-               tr(STR_STATS_PAGES_PER_MIN));
+               pace.tracked ? tr(STR_STATS_PAGES_PER_MIN) : tr(STR_STATS_SCREENS_PER_MIN));
 
   if (!showRtcStats) {
     return;
@@ -384,7 +384,7 @@ void drawGlobalStatsCard(GfxRenderer& renderer, const int x, const int y, const 
   drawStatCell(renderer, x + thirdW, thirdW, y + layout.topCardTitleH, rowH, buf, tr(STR_STATS_TIME_LBL));
 
   snprintf(buf, sizeof(buf), "%.1f", pagesPerMinute(stats.totalPagesTurned, stats.totalReadingSeconds));
-  drawStatCell(renderer, x + thirdW * 2, thirdW, y + layout.topCardTitleH, rowH, buf, tr(STR_STATS_PAGES_PER_MIN));
+  drawStatCell(renderer, x + thirdW * 2, thirdW, y + layout.topCardTitleH, rowH, buf, tr(STR_STATS_SCREENS_PER_MIN));
 
   const uint32_t avgSecs = stats.totalSessions > 0 ? stats.totalReadingSeconds / stats.totalSessions : 0;
   BookReadingStats::formatDuration(avgSecs, buf, sizeof(buf));

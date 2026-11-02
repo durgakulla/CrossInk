@@ -423,6 +423,7 @@ class EpubReaderActivity final : public Activity {
   bool getTimeLeftPaceSeconds(uint16_t& avgSeconds, const char*& source, uint16_t& sampleCount) const;
   bool estimateRemainingTimeLeftPages(bool bookEstimate, float& remainingPages) const;
   bool estimateProgressTimeLeftSeconds(uint32_t& seconds) const;
+  bool estimateStableTimeLeftSeconds(uint32_t& seconds) const;
   bool estimateTimeLeftSeconds(bool bookEstimate, uint32_t& seconds) const;
   bool formatTimeLeftLabel(char* buf, size_t len, bool bookEstimate) const;
   void refreshCachedTimeLeftEstimate();

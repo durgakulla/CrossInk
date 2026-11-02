@@ -1897,17 +1897,44 @@ bool EpubReaderActivity::estimateProgressTimeLeftSeconds(uint32_t& seconds) cons
   return seconds > 0;
 }
 
+// Book time left for a book with stable page numbers: the stable pages left
+// at the measured seconds per stable page. Exact where the screen-page
+// estimate has to project the current chapter's page size onto the rest.
+bool EpubReaderActivity::estimateStableTimeLeftSeconds(uint32_t& seconds) const {
+  seconds = 0;
+  const int totalPages = section ? section->estimatedTotalPages() : 0;
+  if (!epub || !section || totalPages <= 0 || !stablePace.ready()) {
+    return false;
+  }
+  const float sectionProgress = static_cast<float>(section->currentPage) / static_cast<float>(totalPages);
+  uint32_t page = 0;
+  uint32_t pageCount = 0;
+  if (!epub->resolveReferencePage(currentSpineIndex, sectionProgress, page, pageCount) || page == 0 ||
+      page > pageCount) {
+    return false;
+  }
+  // The page on screen isn't read yet.
+  const uint64_t pagesLeft = static_cast<uint64_t>(pageCount - page) + 1U;
+  const uint64_t estimate =
+      (pagesLeft * stablePace.seconds + stablePace.pages / 2U) / static_cast<uint64_t>(stablePace.pages);
+  seconds = static_cast<uint32_t>(std::min<uint64_t>(estimate, UINT32_MAX));
+  return seconds > 0;
+}
+
 bool EpubReaderActivity::estimateTimeLeftSeconds(const bool bookEstimate, uint32_t& seconds) const {
   seconds = 0;
   uint16_t paceSeconds = 0;
   const char* paceSource = "none";
   uint16_t paceSampleCount = 0;
-  const bool hasPace = getTimeLeftPaceSeconds(paceSeconds, paceSource, paceSampleCount);
+  bool hasPace = getTimeLeftPaceSeconds(paceSeconds, paceSource, paceSampleCount);
 
   uint32_t paceEstimateSeconds = 0;
   bool hasPaceEstimate = false;
   float remainingPages = 0.0f;
-  if (hasPace && estimateRemainingTimeLeftPages(bookEstimate, remainingPages)) {
+  if (bookEstimate && estimateStableTimeLeftSeconds(paceEstimateSeconds)) {
+    hasPace = true;
+    hasPaceEstimate = true;
+  } else if (hasPace && estimateRemainingTimeLeftPages(bookEstimate, remainingPages)) {
     const float estimatedSeconds = remainingPages * static_cast<float>(paceSeconds);
     if (estimatedSeconds > 0.0f) {
       paceEstimateSeconds = static_cast<uint32_t>(std::min(estimatedSeconds + 0.5f, static_cast<float>(UINT32_MAX)));
