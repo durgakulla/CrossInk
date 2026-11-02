@@ -1,6 +1,6 @@
 {
   "name": "CrossInk extras for X3 and X4",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "new_install_prompt_erase": false,
   "new_install_improv_wait_time": 0,
   "builds": [
@@ -20,7 +20,7 @@
           "offset": 57344
         },
         {
-          "path": "firmware/firmware-x3-x4.bin?v=1.8.0",
+          "path": "firmware/firmware-x3-x4.bin?v=1.8.1",
           "offset": 65536
         }
       ]
