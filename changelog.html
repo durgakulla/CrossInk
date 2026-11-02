@@ -42,7 +42,26 @@
   </div>
 
   <article class="release latest">
-    <header><h2>1.7.0</h2><time datetime="2026-11-01T04:46:51Z"></time><span class="badge">Latest</span></header>
+    <header><h2>1.8.0</h2><time datetime="2026-11-02T01:36:26Z"></time><span class="badge">Latest</span></header>
+    <h3>Book time left from stable pages</h3>
+    <ul>
+      <li>For books with stable page numbers (run through the <a href="optimizer.html">EPUB Optimizer</a>), time left
+        in the book is the stable pages left at your measured time per stable page, so it no longer swings with how
+        long or short the current chapter's pages are.</li>
+      <li>Applies once about two minutes of reading have been measured, the same as stable pages per minute. Until
+        then, and for other books, it's estimated as before. Time left in the chapter is unchanged.</li>
+    </ul>
+    <h3>Pace labels name their unit</h3>
+    <ul>
+      <li>Pace reads "pg/min" when it counts stable pages and "scr/min" when it counts screens turned, on the Reading
+        Heatmap and Minimal Carousel progress bars, the Book Stats screens and the Dashboard theme.</li>
+    </ul>
+    <p class="links"><a href="./#install">Install</a> ·
+      <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.8.0">Release and downloads</a></p>
+  </article>
+
+  <article class="release">
+    <header><h2>1.7.0</h2><time datetime="2026-11-01T04:46:51Z"></time></header>
     <h3>Pages per minute in stable pages</h3>
     <ul>
       <li>For books with stable page numbers (run through the <a href="optimizer.html">EPUB Optimizer</a>), pages per
@@ -172,7 +191,7 @@
 
 <div class="site">
   <footer class="site-foot">
-    CrossInk extras 1.7.0 · An unofficial build of <a href="https://github.com/uxjulia/CrossInk">CrossInk</a> ·
+    CrossInk extras 1.8.0 · An unofficial build of <a href="https://github.com/uxjulia/CrossInk">CrossInk</a> ·
     Source on <a href="https://github.com/durgakulla/CrossInk/tree/feat/reading-heatmap-sleep">GitHub</a>
   </footer>
 </div>
