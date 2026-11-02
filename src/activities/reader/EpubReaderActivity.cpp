@@ -1926,15 +1926,17 @@ bool EpubReaderActivity::estimateTimeLeftSeconds(const bool bookEstimate, uint32
   uint16_t paceSeconds = 0;
   const char* paceSource = "none";
   uint16_t paceSampleCount = 0;
-  bool hasPace = getTimeLeftPaceSeconds(paceSeconds, paceSource, paceSampleCount);
+  // The stable pace already leaves out flipped and idle pages, so it needs no
+  // floor from the whole-book average below.
+  if (bookEstimate && estimateStableTimeLeftSeconds(seconds)) {
+    return true;
+  }
+  const bool hasPace = getTimeLeftPaceSeconds(paceSeconds, paceSource, paceSampleCount);
 
   uint32_t paceEstimateSeconds = 0;
   bool hasPaceEstimate = false;
   float remainingPages = 0.0f;
-  if (bookEstimate && estimateStableTimeLeftSeconds(paceEstimateSeconds)) {
-    hasPace = true;
-    hasPaceEstimate = true;
-  } else if (hasPace && estimateRemainingTimeLeftPages(bookEstimate, remainingPages)) {
+  if (hasPace && estimateRemainingTimeLeftPages(bookEstimate, remainingPages)) {
     const float estimatedSeconds = remainingPages * static_cast<float>(paceSeconds);
     if (estimatedSeconds > 0.0f) {
       paceEstimateSeconds = static_cast<uint32_t>(std::min(estimatedSeconds + 0.5f, static_cast<float>(UINT32_MAX)));
