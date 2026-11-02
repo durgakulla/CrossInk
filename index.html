@@ -46,6 +46,9 @@
   button.go.alt { background: transparent; color: var(--fg); border: 1px solid var(--fg); }
   button.go:disabled { opacity: 0.35; cursor: not-allowed; }
   .devicepick { margin-bottom: 18px; }
+  .release-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 0 0 16px;
+    font-size: 0.92rem; color: var(--muted); }
+  .release-line strong { color: var(--fg); font-size: 1.05rem; }
   .flash-steps { list-style: none; margin: 16px 0 0; padding: 0; font-size: 0.92rem; color: var(--muted); }
   .flash-steps li { position: relative; padding: 3px 0 3px 26px; margin: 0; border: 0; }
   .flash-steps li::before { content: ""; position: absolute; left: 4px; top: 0.62em; width: 10px; height: 10px;
@@ -188,6 +191,8 @@
         <a href="#caveats">Good to know</a></p>
     </div>
     <div class="install" id="install">
+      <p class="release-line"><span>Installs <strong>CrossInk extras 1.8.1</strong></span>
+        <span>on CrossInk 1.6.1 · <a href="changelog.html">What's new</a></span></p>
       <div class="seg devicepick" role="group" aria-label="Your device">
         <button type="button" data-install="c3" aria-pressed="true">X3 / X4</button>
         <button type="button" data-install="x4pro" aria-pressed="false">X4 Pro</button>
@@ -195,12 +200,12 @@
       <ol>
         <li>Open this page in <strong>Chrome or Edge</strong> on a computer.</li>
         <li>Plug in your reader with a USB-C data cable and turn it on.</li>
-        <li>Click <strong>Install</strong>, pick the device, and wait until it says done.</li>
+        <li>Click <strong>Install 1.8.1</strong>, pick the device, and wait until it says done.</li>
         <li>Turn on the features you want (see below).</li>
       </ol>
       <div data-for="c3">
         <esp-web-install-button manifest="manifest.json?v=1.8.1">
-          <button class="go" slot="activate">Install</button>
+          <button class="go" slot="activate">Install 1.8.1</button>
           <p slot="unsupported" class="warn">This browser can't talk to USB devices. Use Chrome or Edge on a computer.</p>
           <p slot="not-allowed" class="warn">Installing needs a secure (https) page.</p>
         </esp-web-install-button>
@@ -208,7 +213,7 @@
           USB-locked device? Use the <a href="#caveats">SD card method</a>.</p>
       </div>
       <div data-for="x4pro" hidden>
-        <button class="go" type="button" id="x4proGo">Install on X4 Pro</button>
+        <button class="go" type="button" id="x4proGo">Install 1.8.1 on X4 Pro</button>
         <div id="x4proFlash"></div>
         <p class="fine">Installs into the X4 Pro's spare firmware slot, like the official installer. The bootloader,
           partition table and the firmware it runs now aren't touched, and your settings and SD card are kept.</p>
