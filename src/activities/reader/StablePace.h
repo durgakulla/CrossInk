@@ -28,6 +28,9 @@ struct StablePace {
 
   // Adds the stable pages between two counted forward turns.
   void add(uint32_t stablePages, uint32_t turnSeconds);
+
+  // Seconds to read this many stable pages at the measured pace; needs ready().
+  uint32_t secondsFor(float stablePages) const;
 };
 
 // Pages per minute for a book: stable pages when its pace is tracked (none

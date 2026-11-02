@@ -1921,6 +1921,26 @@ bool EpubReaderActivity::estimateStableTimeLeftSeconds(uint32_t& seconds) const 
   return seconds > 0;
 }
 
+// Chapter time left for a book with stable page numbers: the stable pages to
+// the end of the chapter (its last file when it spans several) at the
+// measured seconds per stable page.
+bool EpubReaderActivity::estimateStableChapterTimeLeftSeconds(uint32_t& seconds) const {
+  seconds = 0;
+  const int totalPages = section ? section->estimatedTotalPages() : 0;
+  if (!epub || !section || totalPages <= 0 || !stablePace.ready() || !epub->hasStablePageNumbers()) {
+    return false;
+  }
+  const int lastSpine = chapterGroupEstimate.valid && chapterGroupEstimate.currentSpineIndex == currentSpineIndex
+                            ? chapterGroupEstimate.lastSpineIndex
+                            : currentSpineIndex;
+  const float sectionProgress = static_cast<float>(section->currentPage) / static_cast<float>(totalPages);
+  const float read = epub->calculateProgress(currentSpineIndex, sectionProgress);
+  const float chapterEnd = epub->calculateProgress(lastSpine, 1.0f);
+  const float pagesLeft = (chapterEnd - read) * static_cast<float>(epub->getReferencePageCount());
+  seconds = stablePace.secondsFor(pagesLeft);
+  return seconds > 0;
+}
+
 bool EpubReaderActivity::estimateTimeLeftSeconds(const bool bookEstimate, uint32_t& seconds) const {
   seconds = 0;
   uint16_t paceSeconds = 0;
@@ -1928,7 +1948,7 @@ bool EpubReaderActivity::estimateTimeLeftSeconds(const bool bookEstimate, uint32
   uint16_t paceSampleCount = 0;
   // The stable pace already leaves out flipped and idle pages, so it needs no
   // floor from the whole-book average below.
-  if (bookEstimate && estimateStableTimeLeftSeconds(seconds)) {
+  if (bookEstimate ? estimateStableTimeLeftSeconds(seconds) : estimateStableChapterTimeLeftSeconds(seconds)) {
     return true;
   }
   const bool hasPace = getTimeLeftPaceSeconds(paceSeconds, paceSource, paceSampleCount);

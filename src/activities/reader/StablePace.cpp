@@ -3,6 +3,8 @@
 #include <HalStorage.h>
 #include <Logging.h>
 
+#include <algorithm>
+
 #include "BookReadingStats.h"
 
 namespace {
@@ -82,6 +84,12 @@ void StablePace::add(const uint32_t stablePages, const uint32_t turnSeconds) {
   if (pages > UINT32_MAX - stablePages || seconds > UINT32_MAX - turnSeconds) return;
   pages += stablePages;
   seconds += turnSeconds;
+}
+
+uint32_t StablePace::secondsFor(const float stablePages) const {
+  if (!ready() || stablePages <= 0.0f) return 0;
+  const float estimate = stablePages * static_cast<float>(seconds) / static_cast<float>(pages);
+  return static_cast<uint32_t>(std::min(estimate + 0.5f, static_cast<float>(UINT32_MAX)));
 }
 
 bool readingPagesPerMinute(const BookReadingStats& stats, const StablePace& pace, float& out) {
