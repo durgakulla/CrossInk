@@ -25,7 +25,7 @@ struct BookProgressDetails {
   float pagesPerMinute = 0.0f;
   bool pacedInStablePages = false;          // pagesPerMinute counts stable pages, not screens turned
   uint32_t timeLeftSeconds = 0;             // Estimated time to finish; 0 when unknown
-  uint32_t chapterTimeLeftSeconds = 0;      // Estimated time to finish the chapter; 0 when unknown
+  uint32_t chapterTimeLeftSeconds = 0;      // Time to finish the chapter (stable pages only); 0 when unknown
   ReadingStatsDate startDate;               // Invalid when unknown
   ReadingStatsDate endDate;                 // Finished date, or the estimated one; invalid when unknown
   bool finished = false;                    // endDate is the actual finished date

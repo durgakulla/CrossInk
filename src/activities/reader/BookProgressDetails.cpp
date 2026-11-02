@@ -302,12 +302,10 @@ void loadChapterTicks(const Epub& epub, BookProgressDetails& book) {
 }
 
 // The reader's stable page for an EPUB (when the book has stable page numbers)
-// or its page for an XTC, the pages left in the current EPUB chapter (screen
-// pages, and stable pages up to the next chapter mark when the book has them),
-// and where each EPUB chapter starts. Unknown values stay 0.
-void loadBookPosition(const std::string& path, BookProgressDetails& book, uint32_t& chapterPagesLeft,
-                      float& chapterStablePagesLeft) {
-  chapterPagesLeft = 0;
+// or its page for an XTC, the stable pages left to the next chapter mark (for
+// EPUBs with stable page numbers), and where each EPUB chapter starts.
+// Unknown values stay 0.
+void loadBookPosition(const std::string& path, BookProgressDetails& book, float& chapterStablePagesLeft) {
   chapterStablePagesLeft = 0.0f;
   if (FsHelpers::hasEpubExtension(path)) {
     Epub epub(path, "/.crosspoint");
@@ -320,9 +318,6 @@ void loadBookPosition(const std::string& path, BookProgressDetails& book, uint32
     EpubReaderUtils::Progress progress;
     if (!EpubReaderUtils::loadProgress(epub, progress, "BPD") || !progress.hasPageCount || progress.pageCount <= 0) {
       return;
-    }
-    if (progress.pageNumber + 1 < progress.pageCount) {
-      chapterPagesLeft = static_cast<uint32_t>(progress.pageCount - (progress.pageNumber + 1));
     }
     if (epub.hasStablePageNumbers()) {
       // Same section progress the reader uses for its stable page.
@@ -383,9 +378,8 @@ void loadBookProgressDetails(const std::string& path, const BookReadingStats& st
   } else if (details.timeLeftSeconds > 0 && now) {
     stats.estimateFinishDate(*now, details.timeLeftSeconds, details.endDate);
   }
-  uint32_t chapterPagesLeft = 0;
   float chapterStablePagesLeft = 0.0f;
-  loadBookPosition(path, details, chapterPagesLeft, chapterStablePagesLeft);
+  loadBookPosition(path, details, chapterStablePagesLeft);
   StablePace pace;
   if (FsHelpers::hasEpubExtension(path)) {
     pace = StablePace::load(Epub::resolveCachePathForFilePath(path, "/.crosspoint"));
@@ -395,12 +389,10 @@ void loadBookProgressDetails(const std::string& path, const BookReadingStats& st
   }
   details.hasPagesPerMinute = readingPagesPerMinute(stats, pace, details.pagesPerMinute);
   details.pacedInStablePages = pace.tracked;
-  // Stable pages at the stable pace once it's measured, like the book's time
-  // left; otherwise screen pages at the reader's stored pace, which needs a
-  // few page samples before it is trusted.
+  // Only stable pages give a reliable chapter length from the saved position:
+  // the screen pages saved for a long chapter can cover just the part the
+  // reader had laid out. Other books show no chapter time here.
   if (pace.ready() && chapterStablePagesLeft > 0.0f) {
     details.chapterTimeLeftSeconds = pace.secondsFor(chapterStablePagesLeft);
-  } else if (stats.avgSecondsPerForwardPage > 0 && stats.paceSampleCount >= 3) {
-    details.chapterTimeLeftSeconds = chapterPagesLeft * stats.avgSecondsPerForwardPage;
   }
 }
