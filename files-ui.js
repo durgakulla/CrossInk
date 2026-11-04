@@ -19,6 +19,7 @@
   var selDelete = document.getElementById("selDelete");
   var upload = document.getElementById("upload");
   var selRename = document.getElementById("selRename");
+  var selEdit = document.getElementById("selEdit");
   var libNote = document.getElementById("libNote");
   var viewButtons = Array.prototype.slice.call(document.querySelectorAll("#view button"));
 
@@ -44,6 +45,7 @@
   }
 
   function isBook(name) { return /\.(epub|xtch?|txt|md)$/i.test(name); }
+  function isEpub(entry) { return !entry.folder && /\.epub$/i.test(entry.name); }
   function duration(seconds) {
     var h = Math.floor(seconds / 3600);
     var m = Math.floor((seconds % 3600) / 60);
@@ -345,6 +347,7 @@
         moveMany([{ path: path, folder: entry.folder }], dest);
       });
     }));
+    if (isEpub(entry)) actions.appendChild(button("Edit details", "", function () { editDetails(panel, path); }));
     if (!entry.folder) actions.appendChild(button("Download", "", function () { download(path, entry.size); }));
     actions.appendChild(button("Delete", "", function () { confirmDelete(actions, [{ path: path, folder: entry.folder }]); }));
 
@@ -500,6 +503,94 @@
     input.addEventListener("blur", function () { finish(true); });
   }
 
+  // Changes an EPUB's title and author inside the book and writes it back to
+  // the same path, so the reader keeps its stats, position and settings
+  // (replacing a book over USB keeps them). Optionally renames the file to
+  // match, which keeps them too.
+  async function editDetails(host, path) {
+    var zip, info;
+    var ok = await run("Reading the book…", async function () {
+      var bytes = await fs.read(path, function (f) { say("Reading the book… " + Math.round(f * 100) + "%"); });
+      zip = await JSZip.loadAsync(bytes);
+      info = await EpubMeta.read(zip);
+    });
+    if (!ok) return;
+    say("");
+    host.textContent = "";
+    var form = document.createElement("div");
+    form.className = "meta-form";
+    function field(label, value) {
+      var wrap = document.createElement("label");
+      wrap.appendChild(document.createTextNode(label));
+      var input = document.createElement("input");
+      input.type = "text";
+      input.value = value;
+      input.spellcheck = false;
+      wrap.appendChild(input);
+      form.appendChild(wrap);
+      return input;
+    }
+    var title = field("Title", info.title);
+    var author = field("Author", info.author);
+    var renameWrap = document.createElement("label");
+    renameWrap.className = "check";
+    var rename = document.createElement("input");
+    rename.type = "checkbox";
+    var renameText = document.createElement("span");
+    renameWrap.appendChild(rename);
+    renameWrap.appendChild(renameText);
+    form.appendChild(renameWrap);
+    function fileName() {
+      var name = [title.value.trim(), author.value.trim()].filter(Boolean).join(" - ")
+        .replace(/[\/\\:*?"<>|]/g, "").replace(/\s+/g, " ").trim().slice(0, 120);
+      return name ? name + ".epub" : "";
+    }
+    function update() {
+      renameText.textContent = "Rename the file to “" + (fileName() || "…") + "”";
+      rename.disabled = !fileName() || fileName() === baseName(path);
+    }
+    title.addEventListener("input", update);
+    author.addEventListener("input", update);
+    update();
+    var bar = document.createElement("div");
+    bar.className = "meta-bar";
+    bar.appendChild(button("Save", "primary", save));
+    bar.appendChild(button("Cancel", "", function () { host.hidden = true; say(""); }));
+    form.appendChild(bar);
+    form.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && e.target.type === "text") save();
+      if (e.key === "Escape") { host.hidden = true; say(""); }
+    });
+    host.appendChild(form);
+    host.hidden = false;
+    title.focus();
+
+    async function save() {
+      var newTitle = title.value.trim().replace(/\s+/g, " ");
+      var newAuthor = author.value.trim().replace(/\s+/g, " ");
+      var target = rename.checked && !rename.disabled ? join(parentOf(path), fileName()) : path;
+      if (!newTitle) { say("The title can't be empty.", true); return; }
+      var changed = newTitle !== info.title || newAuthor !== info.author;
+      if (!changed && target === path) { host.hidden = true; return; }
+      host.hidden = true;
+      var saved = !changed;
+      var ok = await run("Saving…", async function () {
+        if (changed) {
+          var blob = await EpubMeta.save(zip, info, newTitle, newAuthor);
+          await fs.write(path, blob, function (f) { say("Saving… " + Math.round(f * 100) + "%"); });
+          saved = true;
+        }
+        if (target !== path) await fs.rename(path, target);
+      });
+      if (!ok && !saved) return;
+      var error = message.textContent;
+      await refresh();
+      if (!ok) say((changed ? "Saved the new details, but couldn't rename the file: " : "") + error, true);
+      else say(changed ? "Saved. The reader shows the new title and author once you open the book." :
+        "Renamed to " + baseName(target));
+    }
+  }
+
   function confirmDelete(host, items) {
     if (busy) return;
     var saved = Array.prototype.slice.call(host.childNodes);
@@ -582,6 +673,8 @@
     selbar.hidden = selected.size === 0;
     selCount.textContent = selected.size + " selected";
     selRename.hidden = selected.size !== 1;
+    var only = selected.size === 1 ? refs.get(Array.from(selected)[0]) : null;
+    selEdit.hidden = !(only && isEpub(only.entry));
     list.classList.toggle("selecting", selected.size > 0);
   }
 
@@ -665,6 +758,10 @@
       try { localStorage.setItem("crossink-files-view", view); } catch (e) { /* not saved */ }
       if (!browser.hidden) render();
     });
+  });
+  selEdit.addEventListener("click", function () {
+    var path = Array.from(selected)[0];
+    if (path) editDetails(document.getElementById("selPanel"), path);
   });
   selMove.addEventListener("click", function () {
     var items = selectedItems();

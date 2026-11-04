@@ -30,7 +30,8 @@
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; }
   .tile { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
   .tile b { display: block; white-space: nowrap; font-size: 1.25rem; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .tile span { color: var(--muted); font-size: 0.8rem; }
+  .tile span { color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
+  @media (min-width: 700px) { .tiles { grid-template-columns: repeat(5, 1fr); } }
   h2 { font-size: 0.95rem; margin: 0 0 10px; }
 
   .heat { overflow-x: auto; padding-bottom: 4px; }
@@ -58,6 +59,24 @@
   .books .author { color: var(--muted); }
   .books .gone { color: var(--muted); font-size: 0.82rem; font-style: italic; }
   .table { overflow-x: auto; }
+
+  .card[hidden] { display: none; }
+  .current { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .reading { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 0.84rem; min-width: 0; }
+  .reading .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reading .author { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reading .track { height: 6px; background: var(--l0); border-radius: 3px; overflow: hidden; margin: 8px 0 6px; }
+  .reading .fill { height: 100%; background: var(--fg); }
+  .reading .meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  h2.row { display: flex; align-items: baseline; gap: 8px; }
+  h2.row span { color: var(--muted); font-weight: 400; font-size: 0.8rem; margin-left: auto; }
+  .finished { max-height: 260px; overflow-y: auto; font-size: 0.84rem; }
+  .finished h3 { font-size: 0.78rem; color: var(--muted); font-weight: 600; margin: 10px 0 4px; }
+  .finished h3:first-child { margin-top: 0; }
+  .finished .done { display: flex; gap: 10px; padding: 3px 0; }
+  .finished .title { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .finished .meta { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); font-size: 0.88rem; }
 
 
@@ -94,11 +113,19 @@
 
   <div id="dashboard" hidden>
     <div class="card"><div class="tiles" id="tiles"></div></div>
+    <div class="card" id="currentCard" hidden>
+      <h2>Currently reading</h2>
+      <div class="current" id="current"></div>
+    </div>
     <div class="card">
       <h2>Reading days</h2>
       <div class="heat" id="heat"></div>
       <div class="legend">Less <i style="background:var(--l0)"></i><i style="background:var(--l1)"></i><i style="background:var(--l2)"></i><i style="background:var(--l3)"></i> More
         <span class="spacer"></span><span id="heatNote"></span></div>
+    </div>
+    <div class="card split">
+      <div><h2>Time read by month</h2><div class="bars" id="months"></div></div>
+      <div><h2 class="row">Books finished <span id="finishedNote"></span></h2><div class="finished" id="finished"></div></div>
     </div>
     <div class="card split">
       <div><h2>Time of day</h2><div class="bars" id="timeOfDay"></div></div>
@@ -115,10 +142,15 @@
     <li>A backup is a readable JSON file of all your stats. Restoring replaces the reader's stats with it; books are
       matched by their path, so keep them in the same folders. The page saves a backup of the current stats first,
       and the reader restarts when it's done.</li>
-    <li>Shades show minutes read for the last 27 weeks; older reading days are marked in the lightest shade.</li>
-    <li>Pages/min counts stable pages for books with stable page numbers (run through the EPUB Optimizer; firmware
-      1.7.0+, after about 2 minutes of reading) and page turns for other books. Page turns are screens turned forward,
-      so they depend on your font and text size.</li>
+    <li>Shades show minutes read for the last 27 weeks; older reading days are marked in the lightest shade. Time
+      read by month covers the same 27 weeks.</li>
+    <li>The finish date is the reader's estimate: the time left, spread over days at your average reading time per day
+      since you started the book.</li>
+    <li>Screen turns are screens turned forward, so they depend on your font and text size. Pages read are stable
+      pages, for books with stable page numbers (run through the EPUB Optimizer; firmware 1.7.0+): the pages the
+      reader timed for your pace, so pages you flipped through quickly or left idle aren't counted.</li>
+    <li>Pg/min uses those pages read, once about 2 minutes have been measured, so it doesn't change with your font or
+      text size. Scr/min uses screen turns and shows for books without a Pg/min yet.</li>
   </ul>
 </div>
 
@@ -131,6 +163,6 @@
 
 <script src="usb-send.js?v=7"></script>
 <script src="reader.js?v=4"></script>
-<script src="stats-ui.js?v=6"></script>
+<script src="stats-ui.js?v=11"></script>
 </body>
 </html>

@@ -24,11 +24,19 @@
   var data = null;        // What the dashboard shows
   var cardBooks = null;   // Book paths on the connected reader
   var busy = false;
-  var sort = { key: "seconds", ascending: false };
+  var sort = { key: "startDate", ascending: false };  // Newest started first
 
   // ---- Helpers -----------------------------------------------------------
 
   function dayDate(index) { return new Date(EPOCH + index * DAY_MS); }
+  // Day index of a "YYYY-MM-DD" date, or null.
+  function isoIndex(iso) { return iso ? Math.round((Date.parse(iso + "T00:00:00Z") - EPOCH) / DAY_MS) : null; }
+  function monthIndex(year, month) { return Math.round((Date.UTC(year, month, 1) - EPOCH) / DAY_MS); }
+  // Seconds read on a day, from the per-day log (about the last 6 months).
+  function daySeconds(d, index) {
+    if (!d.daily || !d.daily.anchorDay || index > d.daily.anchorDay) return 0;
+    return d.daily.seconds[d.daily.anchorDay - index] || 0;
+  }
   function dateText(d) { return MONTHS[d.getUTCMonth()] + " " + d.getUTCDate() + ", " + d.getUTCFullYear(); }
   function isoDay(d) { return d.toISOString().slice(0, 10); }
   function shortDate(iso) {
@@ -44,12 +52,14 @@
     if (m) return m + "m";
     return seconds ? "<1m" : "0m";
   }
-  function pace(book) {
-    // Same rule as the reader: stable pages for books it tracks that way (once
-    // 2 minutes are measured), otherwise page turns.
-    if (book.stableSeconds != null) {
-      return book.stableSeconds >= 120 && book.stablePages ? book.stablePages * 60 / book.stableSeconds : 0;
-    }
+  // Stable pages per minute, once the reader has measured 2 minutes of them
+  // (books with stable page numbers, firmware 1.7.0+); 0 otherwise.
+  function pagePace(book) {
+    return book.stableSeconds >= 120 && book.stablePages ? book.stablePages * 60 / book.stableSeconds : 0;
+  }
+  // Screens turned forward per minute, for books without a stable pace yet.
+  function screenPace(book) {
+    if (pagePace(book)) return 0;
     return book.seconds > 60 && book.pages ? book.pages * 60 / book.seconds : 0;
   }
   function say(text, bad) {
@@ -172,15 +182,33 @@
       [duration(d.global.seconds), "Time read"],
       [d.global.completedBooks, "Books finished"],
       [d.global.sessions, "Sessions"],
-      [d.global.pages.toLocaleString(), "Page turns"],
+      [d.global.pages.toLocaleString(), "Screen turns"],
       [(d.global.currentStreak || 0) + "d", "Current streak"],
       [(d.global.longestStreak || 0) + "d", "Longest streak"],
-    ].forEach(function (t) {
+    ].concat(averageTiles(d)).forEach(function (t) {
       var tile = el("div", { class: "tile" });
       tile.appendChild(el("b", {}, String(t[0])));
       tile.appendChild(el("span", {}, t[1]));
       tiles.appendChild(tile);
     });
+  }
+
+  // Averages: per session, per reading day and how often you read.
+  function averageTiles(d) {
+    var today = todayIndex(d);
+    var tiles = [[d.global.sessions ? duration(d.global.seconds / d.global.sessions) : "–", "Avg session"]];
+    var seconds = 0, days = 0;
+    for (var i = today - 29; i <= today; i++) {
+      if (dayLevel(d, i).level) days++;
+      seconds += daySeconds(d, i);
+    }
+    tiles.push([days ? duration(seconds / days) : "–", "Avg day (30d)"]);
+    tiles.push([days + "/30", "Days read (30d)"]);
+    var year = dayDate(today).getUTCFullYear();
+    var yearDays = 0;
+    for (var j = monthIndex(year, 0); j <= today; j++) if (dayLevel(d, j).level) yearDays++;
+    tiles.push([Math.round(yearDays * 100 / (today - monthIndex(year, 0) + 1)) + "%", "Days read in " + year]);
+    return tiles;
   }
 
   // Shade of a day: by minutes for the days in the per-day log, otherwise
@@ -203,64 +231,175 @@
     return { level: seconds > 0 || read ? 1 : 0, seconds: seconds, read: read };
   }
 
+  // Like the Reading Heatmap sleep screen: each month is its own block, a
+  // column per Monday-based week it touches, with a gap between months and
+  // the weekday labels beside the current month.
   function renderHeatmap(d) {
     var host = document.getElementById("heat");
     host.textContent = "";
     var today = todayIndex(d);
     // Weeks start on Monday; day index 0 (Jan 1, 2000) was a Saturday.
     var weekday = function (index) { return (index + 5) % 7; };
-    var end = today + (6 - weekday(today));
-    var start = end - 104 * 7 - 6;
-    var cell = 10, gap = 2, top = 14, left = 24;
-    var weeks = Math.ceil((end - start + 1) / 7);
+    var cell = 10, gap = 2, pitch = cell + gap, monthGap = 8, top = 14, labelWidth = 26;
+    var todayDate = dayDate(today);
+    var months = [];
+    for (var back = 23; back >= 0; back--) {
+      var first = new Date(Date.UTC(todayDate.getUTCFullYear(), todayDate.getUTCMonth() - back, 1));
+      var next = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 1));
+      var firstIndex = Math.round((first.getTime() - EPOCH) / DAY_MS);
+      // The current month ends at this week.
+      var shownDays = back === 0 ? today - firstIndex + 1 : Math.round((next - first) / DAY_MS);
+      months.push({ first: first, firstIndex: firstIndex, days: shownDays, offset: weekday(firstIndex),
+                    columns: Math.ceil((weekday(firstIndex) + shownDays) / 7) });
+    }
+    var x = 0;
+    months.forEach(function (m) { m.x = x; x += m.columns * pitch - gap + monthGap; });
+    var gridWidth = x - monthGap;
+
     var ns = "http://www.w3.org/2000/svg";
     var svg = document.createElementNS(ns, "svg");
-    svg.setAttribute("width", left + weeks * (cell + gap));
-    svg.setAttribute("height", top + 7 * (cell + gap));
+    svg.setAttribute("width", gridWidth + 6 + labelWidth);
+    svg.setAttribute("height", top + 7 * pitch);
     svg.setAttribute("role", "img");
     svg.setAttribute("aria-label", "Reading days for the last two years");
-    ["Mon", "", "Wed", "", "Fri", "", ""].forEach(function (label, row) {
-      if (!label) return;
+    var text = function (x, y, label, anchor) {
       var t = document.createElementNS(ns, "text");
-      t.setAttribute("x", 0);
-      t.setAttribute("y", top + row * (cell + gap) + cell - 1);
+      t.setAttribute("x", x);
+      t.setAttribute("y", y);
+      if (anchor) t.setAttribute("text-anchor", anchor);
       t.textContent = label;
       svg.appendChild(t);
+    };
+    ["Mon", "", "Wed", "", "Fri", "", "Sun"].forEach(function (label, row) {
+      if (label) text(gridWidth + 6, top + row * pitch + cell - 1, label);
     });
     var shades = ["var(--l0)", "var(--l1)", "var(--l2)", "var(--l3)"];
-    var lastMonth = -1;
     var readDays = 0;
-    for (var index = start; index <= end; index++) {
-      var column = Math.floor((index - start) / 7);
-      var row = weekday(index);
-      var date = dayDate(index);
-      if (row === 0 && date.getUTCMonth() !== lastMonth) {
-        lastMonth = date.getUTCMonth();
-        var m = document.createElementNS(ns, "text");
-        m.setAttribute("x", left + column * (cell + gap));
-        m.setAttribute("y", 9);
-        m.textContent = MONTHS[lastMonth];
-        svg.appendChild(m);
+    months.forEach(function (m) {
+      var month = m.first.getUTCMonth();
+      text(m.x + (m.columns * pitch - gap) / 2, 9,
+           MONTHS[month] + (month === 0 ? " " + m.first.getUTCFullYear() : ""), "middle");
+      for (var day = 0; day < m.days; day++) {
+        var index = m.firstIndex + day;
+        var info = dayLevel(d, index);
+        if (info.level) readDays++;
+        var rect = document.createElementNS(ns, "rect");
+        rect.setAttribute("x", m.x + Math.floor((m.offset + day) / 7) * pitch);
+        rect.setAttribute("y", top + weekday(index) * pitch);
+        rect.setAttribute("width", cell);
+        rect.setAttribute("height", cell);
+        rect.setAttribute("rx", 2);
+        rect.setAttribute("fill", shades[info.level]);
+        var title = document.createElementNS(ns, "title");
+        title.textContent = dateText(dayDate(index)) + ": " + (info.seconds ? duration(info.seconds) :
+          info.read ? "read" : "no reading");
+        rect.appendChild(title);
+        svg.appendChild(rect);
       }
-      if (index > today) continue;
-      var day = dayLevel(d, index);
-      if (day.level) readDays++;
-      var rect = document.createElementNS(ns, "rect");
-      rect.setAttribute("x", left + column * (cell + gap));
-      rect.setAttribute("y", top + row * (cell + gap));
-      rect.setAttribute("width", cell);
-      rect.setAttribute("height", cell);
-      rect.setAttribute("rx", 2);
-      rect.setAttribute("fill", shades[day.level]);
-      var title = document.createElementNS(ns, "title");
-      title.textContent = dateText(date) + ": " + (day.seconds ? duration(day.seconds) :
-        day.read ? "read" : "no reading");
-      rect.appendChild(title);
-      svg.appendChild(rect);
-    }
+    });
     host.appendChild(svg);
-    host.scrollLeft = host.scrollWidth;  // Most recent weeks in view
+    host.scrollLeft = host.scrollWidth;  // Most recent months in view
     document.getElementById("heatNote").textContent = readDays + " reading days";
+  }
+
+  // The reader's estimated finish date: time left spread at the book's
+  // average reading time per calendar day since it was started
+  // (BookReadingStats::estimateFinishDate).
+  function finishIndex(book, today) {
+    var left = book.timeLeftSeconds || 0;
+    if (!left) return null;
+    var calendar = left;
+    var start = isoIndex(book.startDate);
+    if (start != null && book.seconds > 0) {
+      calendar = left * Math.max(1, today - start) * 86400 / book.seconds;
+    }
+    return today + Math.round(calendar / 86400);
+  }
+
+  function renderCurrent(d) {
+    var host = document.getElementById("current");
+    host.textContent = "";
+    var today = todayIndex(d);
+    // Books read for at least 15 minutes, so ones only opened to look don't count.
+    var books = d.books.filter(function (b) {
+      return !b.completed && !b.deleted && b.progress != null && b.progress > 0 && b.progress < 100 &&
+        b.seconds >= 15 * 60;
+    }).sort(function (a, b) { return (b.startDate || "").localeCompare(a.startDate || ""); }).slice(0, 6);
+    document.getElementById("currentCard").hidden = !books.length;
+    books.forEach(function (book) {
+      var item = el("div", { class: "reading" });
+      item.appendChild(el("div", { class: "title" }, book.title || book.path.split("/").pop()));
+      if (book.author) item.appendChild(el("div", { class: "author" }, book.author));
+      var track = el("div", { class: "track" });
+      var fill = el("div", { class: "fill" });
+      fill.style.width = Math.min(100, book.progress).toFixed(1) + "%";
+      track.appendChild(fill);
+      item.appendChild(track);
+      var parts = [Math.round(book.progress) + "%"];
+      if (book.timeLeftSeconds) parts.push(duration(book.timeLeftSeconds) + " left");
+      var finish = finishIndex(book, today);
+      item.appendChild(el("div", { class: "meta" }, parts.join(" · ")));
+      if (finish != null) {
+        var date = dayDate(finish);
+        item.appendChild(el("div", { class: "meta" }, "Finish ~" + MONTHS[date.getUTCMonth()] + " " + date.getUTCDate() +
+          (date.getUTCFullYear() !== dayDate(today).getUTCFullYear() ? ", " + date.getUTCFullYear() : "")));
+      }
+      host.appendChild(item);
+    });
+  }
+
+  // Time read in each month the per-day log fully covers, and this month.
+  function renderMonths(d) {
+    var today = todayIndex(d);
+    var now = dayDate(today);
+    var oldest = d.daily && d.daily.anchorDay ? d.daily.anchorDay - d.daily.seconds.length + 1 : today;
+    var labels = [], values = [];
+    for (var back = 0; back < 6; back++) {
+      var first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1));
+      var start = monthIndex(first.getUTCFullYear(), first.getUTCMonth());
+      if (back > 0 && start < oldest) break;
+      var end = back === 0 ? today : monthIndex(first.getUTCFullYear(), first.getUTCMonth() + 1) - 1;
+      var seconds = 0;
+      for (var i = start; i <= end; i++) seconds += daySeconds(d, i);
+      labels.unshift(MONTHS[first.getUTCMonth()] + (first.getUTCMonth() === 0 || back === 5 ? " " + first.getUTCFullYear() : ""));
+      values.unshift(seconds);
+    }
+    renderBars("months", labels, values);
+  }
+
+  // Finished books, newest first, grouped by month, with the days each took.
+  function renderFinished(d) {
+    var host = document.getElementById("finished");
+    host.textContent = "";
+    var books = d.books.filter(function (b) { return b.completed; })
+      .sort(function (a, b) { return (b.finishedDate || "").localeCompare(a.finishedDate || ""); });
+    if (!books.length) {
+      host.appendChild(el("p", { class: "empty" }, "No finished books yet."));
+      return;
+    }
+    var year = dayDate(todayIndex(d)).getUTCFullYear();
+    var thisYear = books.filter(function (b) { return (b.finishedDate || "").slice(0, 4) === String(year); }).length;
+    document.getElementById("finishedNote").textContent = thisYear + " in " + year;
+    var group = null;
+    books.forEach(function (book) {
+      var date = book.finishedDate ? new Date(book.finishedDate + "T00:00:00Z") : null;
+      var heading = date ? MONTHS[date.getUTCMonth()] + " " + date.getUTCFullYear() : "Date unknown";
+      if (heading !== group) {
+        group = heading;
+        host.appendChild(el("h3", {}, heading));
+      }
+      var row = el("div", { class: "done" });
+      row.appendChild(el("span", { class: "title" }, book.title || book.path.split("/").pop()));
+      var start = isoIndex(book.startDate), finish = isoIndex(book.finishedDate);
+      var parts = [];
+      if (date) parts.push(MONTHS[date.getUTCMonth()] + " " + date.getUTCDate());
+      if (start != null && finish != null && finish >= start) {
+        var days = finish - start;
+        parts.push(days === 0 ? "same day" : days + (days === 1 ? " day" : " days"));
+      }
+      row.appendChild(el("span", { class: "meta" }, parts.join(" · ")));
+      host.appendChild(row);
+    });
   }
 
   function renderBars(id, labels, values) {
@@ -282,15 +421,18 @@
     { key: "title", label: "Book" },
     { key: "seconds", label: "Time read", n: true },
     { key: "sessions", label: "Sessions", n: true },
-    { key: "pages", label: "Page turns", n: true },
-    { key: "pace", label: "Pages/min", n: true },
+    { key: "pages", label: "Screen turns", n: true },
+    { key: "stablePages", label: "Pages read", n: true },
+    { key: "pagePace", label: "Pg/min", n: true },
+    { key: "screenPace", label: "Scr/min", n: true },
     { key: "startDate", label: "Started" },
     { key: "finishedDate", label: "Finished" },
     { key: "progress", label: "Progress", n: true },
   ];
 
   function sortValue(book, key) {
-    if (key === "pace") return pace(book);
+    if (key === "pagePace") return pagePace(book);
+    if (key === "screenPace") return screenPace(book);
     if (key === "title") return (book.title || book.path).toLowerCase();
     var v = book[key];
     return v == null ? "" : v;
@@ -335,7 +477,9 @@
       tr.appendChild(el("td", { class: "n" }, duration(book.seconds)));
       tr.appendChild(el("td", { class: "n" }, String(book.sessions)));
       tr.appendChild(el("td", { class: "n" }, String(book.pages)));
-      tr.appendChild(el("td", { class: "n" }, pace(book) ? pace(book).toFixed(1) : ""));
+      tr.appendChild(el("td", { class: "n" }, book.stablePages != null ? String(book.stablePages) : ""));
+      tr.appendChild(el("td", { class: "n" }, pagePace(book) ? pagePace(book).toFixed(1) : ""));
+      tr.appendChild(el("td", { class: "n" }, screenPace(book) ? screenPace(book).toFixed(1) : ""));
       tr.appendChild(el("td", { class: "d" }, shortDate(book.startDate)));
       tr.appendChild(el("td", { class: "d" }, book.completed ? shortDate(book.finishedDate) || "Yes" : ""));
       tr.appendChild(el("td", { class: "n" }, book.completed ? "100%" : book.progress != null ? Math.round(book.progress) + "%" : ""));
@@ -346,7 +490,10 @@
 
   function render() {
     renderTiles(data);
+    renderCurrent(data);
     renderHeatmap(data);
+    renderMonths(data);
+    renderFinished(data);
     renderBars("timeOfDay", TIME_OF_DAY, data.global.timeOfDay || [0, 0, 0, 0]);
     renderBars("dayOfWeek", WEEKDAYS, data.global.dayOfWeek || [0, 0, 0, 0, 0, 0, 0]);
     renderBooks(data);
@@ -361,11 +508,12 @@
       v = v == null ? "" : String(v);
       return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
     };
-    var rows = [["Title", "Author", "Path", "Minutes read", "Sessions", "Page turns", "Pages per minute", "Stable pages read", "Started",
-      "Finished", "Completed", "Progress %", "On reader"]];
+    var rows = [["Title", "Author", "Path", "Minutes read", "Sessions", "Screen turns", "Pages read", "Pages per minute",
+      "Screens per minute", "Started", "Finished", "Completed", "Progress %", "On reader"]];
     d.books.forEach(function (b) {
       rows.push([b.title, b.author, b.path, Math.round(b.seconds / 60), b.sessions, b.pages,
-        pace(b) ? pace(b).toFixed(2) : "", b.stablePages != null ? b.stablePages : "", b.startDate || "", b.finishedDate || "", b.completed ? "yes" : "no",
+        b.stablePages != null ? b.stablePages : "", pagePace(b) ? pagePace(b).toFixed(2) : "",
+        screenPace(b) ? screenPace(b).toFixed(2) : "", b.startDate || "", b.finishedDate || "", b.completed ? "yes" : "no",
         b.completed ? 100 : b.progress != null ? Math.round(b.progress) : "", b.deleted ? "no" : "yes"]);
     });
     return rows.map(function (r) { return r.map(quote).join(","); }).join("\n") + "\n";
