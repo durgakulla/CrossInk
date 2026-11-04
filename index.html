@@ -191,7 +191,7 @@
         <a href="#caveats">Good to know</a></p>
     </div>
     <div class="install" id="install">
-      <p class="release-line"><span>Installs <strong>CrossInk extras 1.8.1</strong></span>
+      <p class="release-line"><span>Installs <strong>CrossInk extras 1.8.2</strong></span>
         <span>on CrossInk 1.6.1 · <a href="changelog.html">What's new</a></span></p>
       <div class="seg devicepick" role="group" aria-label="Your device">
         <button type="button" data-install="c3" aria-pressed="true">X3 / X4</button>
@@ -200,12 +200,12 @@
       <ol>
         <li>Open this page in <strong>Chrome or Edge</strong> on a computer.</li>
         <li>Plug in your reader with a USB-C data cable and turn it on.</li>
-        <li>Click <strong>Install 1.8.1</strong>, pick the device, and wait until it says done.</li>
+        <li>Click <strong>Install 1.8.2</strong>, pick the device, and wait until it says done.</li>
         <li>Turn on the features you want (see below).</li>
       </ol>
       <div data-for="c3">
-        <esp-web-install-button manifest="manifest.json?v=1.8.1">
-          <button class="go" slot="activate">Install 1.8.1</button>
+        <esp-web-install-button manifest="manifest.json?v=1.8.2">
+          <button class="go" slot="activate">Install 1.8.2</button>
           <p slot="unsupported" class="warn">This browser can't talk to USB devices. Use Chrome or Edge on a computer.</p>
           <p slot="not-allowed" class="warn">Installing needs a secure (https) page.</p>
         </esp-web-install-button>
@@ -213,7 +213,7 @@
           USB-locked device? Use the <a href="#caveats">SD card method</a>.</p>
       </div>
       <div data-for="x4pro" hidden>
-        <button class="go" type="button" id="x4proGo">Install 1.8.1 on X4 Pro</button>
+        <button class="go" type="button" id="x4proGo">Install 1.8.2 on X4 Pro</button>
         <div id="x4proFlash"></div>
         <p class="fine">Installs into the X4 Pro's spare firmware slot, like the official installer. The bootloader,
           partition table and the firmware it runs now aren't touched, and your settings and SD card are kept.</p>
@@ -331,7 +331,7 @@
       <li><strong>Heatmap page numbers</strong> use CrossInk's stable page numbers, so run your EPUBs through the
         <a href="optimizer.html">EPUB Optimizer</a> here. Without it the page count stays blank.</li>
       <li><strong>USB-locked device?</strong> Download the <code>.bin</code> from the
-        <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.8.1">release</a> and use
+        <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.8.2">release</a> and use
         Settings → System → SD Card Firmware Update (needs CrossInk installed first).</li>
       <li><strong>English only</strong> for the new labels.</li>
       <li><strong>Unofficial.</strong> This is a fork of <a href="https://github.com/uxjulia/CrossInk">CrossInk</a>, so please
@@ -341,7 +341,7 @@
   </section>
 
   <footer class="site-foot">
-    CrossInk extras 1.8.1 · An unofficial build of <a href="https://github.com/uxjulia/CrossInk">CrossInk</a> ·
+    CrossInk extras 1.8.2 · An unofficial build of <a href="https://github.com/uxjulia/CrossInk">CrossInk</a> ·
     Source on <a href="https://github.com/durgakulla/CrossInk/tree/feat/reading-heatmap-sleep">GitHub</a> ·
     Installer by <a href="https://github.com/esphome/esp-web-tools">ESP Web Tools</a>
   </footer>
@@ -469,7 +469,7 @@
   document.getElementById("x4proGo").addEventListener("click", function () {
     var button = this;
     button.disabled = true;
-    fetch("firmware/firmware-x4-pro.bin?v=1.8.1").then(function (r) {
+    fetch("firmware/firmware-x4-pro.bin?v=1.8.2").then(function (r) {
       if (!r.ok) throw new Error("Couldn't download the firmware (" + r.status + ").");
       return r.arrayBuffer();
     }).then(function (buf) {

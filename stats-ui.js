@@ -330,6 +330,7 @@
       var name = el("td");
       name.appendChild(el("div", { class: "title" }, book.title || book.path.split("/").pop()));
       if (book.author) name.appendChild(el("div", { class: "author" }, book.author));
+      if (book.deleted) name.appendChild(el("div", { class: "gone" }, "No longer on the reader"));
       tr.appendChild(name);
       tr.appendChild(el("td", { class: "n" }, duration(book.seconds)));
       tr.appendChild(el("td", { class: "n" }, String(book.sessions)));
@@ -361,11 +362,11 @@
       return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
     };
     var rows = [["Title", "Author", "Path", "Minutes read", "Sessions", "Page turns", "Pages per minute", "Stable pages read", "Started",
-      "Finished", "Completed", "Progress %"]];
+      "Finished", "Completed", "Progress %", "On reader"]];
     d.books.forEach(function (b) {
       rows.push([b.title, b.author, b.path, Math.round(b.seconds / 60), b.sessions, b.pages,
         pace(b) ? pace(b).toFixed(2) : "", b.stablePages != null ? b.stablePages : "", b.startDate || "", b.finishedDate || "", b.completed ? "yes" : "no",
-        b.completed ? 100 : b.progress != null ? Math.round(b.progress) : ""]);
+        b.completed ? 100 : b.progress != null ? Math.round(b.progress) : "", b.deleted ? "no" : "yes"]);
     });
     return rows.map(function (r) { return r.map(quote).join(","); }).join("\n") + "\n";
   }
@@ -389,8 +390,12 @@
     if (cardBooks) {
       var missing = backup.books.filter(function (b) { return !cardBooks.has(b.path); });
       if (missing.length) {
+        // Firmware 1.8.2+ keeps their stats as deleted books; older firmware skips them.
+        var kept = keepsDeletedBooks();
         restorePanel.appendChild(el("p", {}, (missing.length === 1 ? "1 of these books isn't" : missing.length +
-          " of these books aren't") + " on this reader at the same path and will be skipped: " + missing.slice(0, 5).map(function (b) { return b.title || b.path; }).join(", ") +
+          " of these books aren't") + " on this reader at the same path" +
+          (kept ? "; their stats are restored and listed as no longer on the reader: " : " and will be skipped: ") +
+          missing.slice(0, 5).map(function (b) { return b.title || b.path; }).join(", ") +
           (missing.length > 5 ? "…" : "")));
       }
     }
@@ -405,6 +410,14 @@
     bar.appendChild(cancel);
     restorePanel.appendChild(bar);
     restorePanel.hidden = false;
+  }
+
+  function keepsDeletedBooks() {
+    var m = /extras (\d+)\.(\d+)\.(\d+)/.exec((Reader.info && Reader.info.firmware) || "");
+    if (!m) return false;
+    var v = [Number(m[1]), Number(m[2]), Number(m[3])], min = [1, 8, 2];
+    for (var i = 0; i < 3; i++) if (v[i] !== min[i]) return v[i] > min[i];
+    return true;
   }
 
   async function restore(backup) {

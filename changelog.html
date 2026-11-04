@@ -42,7 +42,27 @@
   </div>
 
   <article class="release latest">
-    <header><h2>1.8.1</h2><time datetime="2026-11-02T05:03:29Z"></time><span class="badge">Latest</span></header>
+    <header><h2>1.8.2</h2><time datetime="2026-11-04T17:10:44Z"></time><span class="badge">Latest</span></header>
+    <h3>Deleted books stay in your Reading Stats</h3>
+    <ul>
+      <li>Deleted books now show on the <a href="stats.html">Reading Stats</a> page, marked "No longer on the reader",
+        and stay in the CSV export and backups. Their stats were already kept on the card, but the page only listed
+        books still there.</li>
+      <li>Restoring a backup also restores stats for books that aren't on the reader instead of skipping them.</li>
+      <li>Books deleted before this version show once they're back on the card and opened, or after the Reading Stats
+        page has read them once.</li>
+    </ul>
+    <h3>Long book titles leave room for the chapter</h3>
+    <ul>
+      <li>With the book title at the side of a status bar and the chapter title in the middle, a long book title no
+        longer cuts off the chapter. The middle item keeps up to half the bar and the book title is shortened instead.</li>
+    </ul>
+    <p class="links"><a href="./#install">Install</a> ·
+      <a href="https://github.com/durgakulla/CrossInk/releases/tag/extras-v1.8.2">Release and downloads</a></p>
+  </article>
+
+  <article class="release">
+    <header><h2>1.8.1</h2><time datetime="2026-11-02T05:03:29Z"></time></header>
     <h3>Time left follows your current pace</h3>
     <ul>
       <li>For books with stable page numbers, book time left is the stable pages left at your measured pace. It's no

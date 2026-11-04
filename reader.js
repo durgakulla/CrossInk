@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var LATEST = [1, 8, 1];  // Newest CrossInk extras release
+  var LATEST = [1, 8, 2];  // Newest CrossInk extras release
   var PREF = "crossink-autoconnect";
   var bar = document.getElementById("readerBar");
   var state = "idle";  // idle | connecting | connected | unsupported
