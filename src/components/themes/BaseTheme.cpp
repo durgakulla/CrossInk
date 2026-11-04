@@ -979,7 +979,9 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
   for (unsigned i = ReaderStatusBarConfig::RIGHT_FIRST; i <= ReaderStatusBarConfig::RIGHT_THIRD; ++i) {
     widths[i] = measureItem(config.slots[i], available);
   }
-  fitReaderStatusBarSideWidths(widths, available, bookmarkReserve, itemGap);
+  const auto centerItem =
+      !top && content.autoTurnLabel ? ReaderStatusBarItem::TitleChapter : config.slots[ReaderStatusBarConfig::CENTER];
+  fitReaderStatusBarSideWidths(widths, available, bookmarkReserve, itemGap, measureItem(centerItem, available));
   const auto placement = layoutReaderStatusBarItems(leftEdge, rightEdge, widths, bookmarkReserve, itemGap);
   for (unsigned i = ReaderStatusBarConfig::LEFT_FIRST; i <= ReaderStatusBarConfig::LEFT_THIRD; ++i) {
     if (widths[i] > 0) drawItem(config.slots[i], placement.x[i], widths[i], false);
@@ -989,8 +991,6 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
   }
 
   const int centerWidth = placement.centerRight - placement.centerLeft;
-  const auto centerItem =
-      !top && content.autoTurnLabel ? ReaderStatusBarItem::TitleChapter : config.slots[ReaderStatusBarConfig::CENTER];
   if (centerWidth > 0) {
     const int width = measureItem(centerItem, centerWidth);
     if (width > 0) {

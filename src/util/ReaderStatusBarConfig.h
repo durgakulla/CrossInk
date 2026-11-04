@@ -144,8 +144,11 @@ struct ReaderStatusBarGeometry {
 
 // Keep short edge items at their natural width. When the edge clusters would
 // overlap, trim the longest items until both clusters fit the available row.
+// A center item keeps its width, up to half the row, so a long side title
+// can't push it out.
 inline void fitReaderStatusBarSideWidths(std::array<int, ReaderStatusBarConfig::SLOT_COUNT>& widths,
-                                         const int available, const int bookmarkReserve = 0, const int gap = 8) {
+                                         const int available, const int bookmarkReserve = 0, const int gap = 8,
+                                         const int centerWidth = 0) {
   int leftCount = 0;
   int rightCount = 0;
   for (unsigned i = ReaderStatusBarConfig::LEFT_FIRST; i <= ReaderStatusBarConfig::LEFT_THIRD; ++i) {
@@ -157,7 +160,8 @@ inline void fitReaderStatusBarSideWidths(std::array<int, ReaderStatusBarConfig::
   if (leftCount + rightCount == 0) return;
   const int gaps =
       std::max(0, leftCount - 1) + std::max(0, rightCount - 1) + (bookmarkReserve > 0 && leftCount > 0 ? 1 : 0);
-  const int budget = std::max(0, available - bookmarkReserve - gaps * gap);
+  const int centerReserve = centerWidth > 0 ? std::min(centerWidth, available / 2) + 2 * gap : 0;
+  const int budget = std::max(0, available - bookmarkReserve - gaps * gap - centerReserve);
   int low = 0;
   int high = budget;
   while (low < high) {

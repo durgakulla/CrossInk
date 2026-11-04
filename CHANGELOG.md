@@ -22,6 +22,7 @@
 
 ### Fixed
 
+- A long title at the side of a status bar no longer crowds out the title in the middle. The middle item keeps up to half the bar, and the side title is shortened with "…" instead.
 - Renaming or moving a book over USB (CrossInk's serial file transfer, used by Inky and the CrossInk extras File Manager) now keeps its reading stats, position, settings and Recents entry, like renaming it in the web portal. Previously its saved reading data stayed behind under the old path.
 - Chapter marks on the Reading Heatmap progress bar now appear for books whose chapters share a file (common in Project Gutenberg EPUBs) or sit under a single title entry in the table of contents. Each book's marks are worked out once and saved in its cache.
 - The current and longest reading streaks no longer count days dated after today, which could happen after the clock or time zone was changed. They now match the days shown on the Reading Heatmap.

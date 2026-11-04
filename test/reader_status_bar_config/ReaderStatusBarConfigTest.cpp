@@ -55,6 +55,19 @@ TEST(ReaderStatusBarConfig, LoneSideTitleUsesFreeRowWidth) {
   EXPECT_EQ(placement.centerRight, 710);
 }
 
+TEST(ReaderStatusBarConfig, LongSideTitleLeavesRoomForCenterTitle) {
+  std::array<int, ReaderStatusBarConfig::SLOT_COUNT> widths{500, 0, 0, 0, 60, 0, 0};
+  fitReaderStatusBarSideWidths(widths, 700, 0, 8, 200);
+  EXPECT_EQ(widths[4], 60);
+  const auto placement = layoutReaderStatusBarItems(10, 710, widths);
+  EXPECT_GE(placement.centerRight - placement.centerLeft, 200);
+
+  // A very long center title keeps half the row and the side title the rest.
+  widths = {500, 0, 0, 0, 60, 0, 0};
+  fitReaderStatusBarSideWidths(widths, 700, 0, 8, 900);
+  EXPECT_EQ(widths[0], 700 - 350 - 16 - 60);
+}
+
 TEST(ReaderStatusBarConfig, CrowdedSidesFitWithoutOverlap) {
   std::array<int, ReaderStatusBarConfig::SLOT_COUNT> widths{200, 24, 24, 0, 200, 24, 24};
   fitReaderStatusBarSideWidths(widths, 400, 13);
