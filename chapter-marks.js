@@ -179,16 +179,18 @@
     return a.length === b.length && a.every(function (v, i) { return v === b[i]; });
   }
 
-  // Adds the editor under an optimized book. base is its blob; link is its
-  // download link, which is updated when the marks are saved.
-  async function attach(container, base, link) {
-    var zip = await JSZip.loadAsync(base);
+  // The editor for a loaded book: a collapsible list of its table of
+  // contents with a preview bar, or null when it has no table of contents.
+  // apply(zip) writes the choice into a JSZip of the same book; saved() marks
+  // the current choice as the saved one.
+  async function editor(zip) {
     var entries = await readToc(zip);
-    if (!entries.length) return;
+    if (!entries.length) return null;
     var auto = autoSelection(entries);
     var where = await positions(zip, entries);
     var saved = await readSaved(zip, entries);
     var selected = new Set(saved || auto);
+    var savedSelection = saved || auto;
 
     var panel = document.createElement("details");
     panel.className = "marks";
@@ -210,15 +212,29 @@
     var reset = document.createElement("button");
     reset.type = "button";
     reset.textContent = "Use automatic";
-    var save = document.createElement("button");
-    save.type = "button";
-    save.className = "primary";
-    save.textContent = "Save marks";
     actions.appendChild(reset);
-    actions.appendChild(save);
     panel.appendChild(actions);
 
-    var savedSelection = saved || auto;
+    var api = {
+      panel: panel, actions: actions, onChange: null,
+      changed: function () { return !sameSelection(current(), savedSelection); },
+      automatic: function () { return sameSelection(current(), auto); },
+      apply: function (out) {
+        var picked = current();
+        if (sameSelection(picked, auto)) {
+          out.remove(MARKS_PATH);  // The firmware picks these by itself
+        } else {
+          out.file(MARKS_PATH, JSON.stringify({
+            format: "crossink-chapter-marks", version: 1,
+            marks: picked.map(function (i) {
+              return { href: entries[i].path, anchor: entries[i].anchor, title: entries[i].title };
+            }),
+          }, null, 1), { createFolders: false });
+        }
+      },
+      saved: function () { savedSelection = current(); render(); },
+    };
+
     function current() { return Array.from(selected).sort(function (a, b) { return a - b; }); }
     function describe(picked) {
       return sameSelection(picked, auto) ? "automatic, " + picked.length : "custom, " + picked.length;
@@ -238,7 +254,7 @@
           tick.style.left = (p * 100).toFixed(2) + "%";
           bar.appendChild(tick);
         });
-      save.disabled = sameSelection(picked, savedSelection);
+      if (api.onChange) api.onChange();
     }
 
     entries.forEach(function (entry, i) {
@@ -271,32 +287,37 @@
       render();
     });
 
+    render();
+    return api;
+  }
+
+  // Adds the editor under an optimized book. base is its blob; link is its
+  // download link, which is updated when the marks are saved.
+  async function attach(container, base, link) {
+    var marks = await editor(await JSZip.loadAsync(base));
+    if (!marks) return;
+    var save = document.createElement("button");
+    save.type = "button";
+    save.className = "primary";
+    save.textContent = "Save marks";
+    marks.actions.appendChild(save);
+    marks.onChange = function () { save.disabled = !marks.changed(); };
+    marks.onChange();
+
     save.addEventListener("click", async function () {
       save.disabled = true;
-      var picked = current();
       var out = await JSZip.loadAsync(base);
-      if (sameSelection(picked, auto)) {
-        out.remove(MARKS_PATH);  // The firmware picks these by itself
-      } else {
-        out.file(MARKS_PATH, JSON.stringify({
-          format: "crossink-chapter-marks", version: 1,
-          marks: picked.map(function (i) {
-            return { href: entries[i].path, anchor: entries[i].anchor, title: entries[i].title };
-          }),
-        }, null, 1));
-      }
+      marks.apply(out);
       out.file("mimetype", "application/epub+zip", { compression: "STORE" });  // Stays first and uncompressed
       var blob = await out.generateAsync({ type: "blob", compression: "DEFLATE", mimeType: "application/epub+zip" });
       URL.revokeObjectURL(link.href);
       link.href = URL.createObjectURL(blob);
-      link.textContent = sameSelection(picked, auto) ? "Download" : "Download with custom marks";
-      savedSelection = picked;
-      render();
+      link.textContent = marks.automatic() ? "Download" : "Download with custom marks";
+      marks.saved();
     });
 
-    render();
-    container.appendChild(panel);
+    container.appendChild(marks.panel);
   }
 
-  window.ChapterMarks = { attach: attach, readToc: readToc, autoSelection: autoSelection };
+  window.ChapterMarks = { attach: attach, editor: editor, readToc: readToc, autoSelection: autoSelection };
 })();

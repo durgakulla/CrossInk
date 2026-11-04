@@ -62,6 +62,23 @@
   .meta-form label.check { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 6px; overflow-wrap: anywhere; }
   .meta-form .check input { accent-color: var(--fg); margin: 0; }
   .meta-bar { grid-column: 1 / -1; display: flex; gap: 6px; }
+  /* Chapter marks, as on the EPUB Optimizer page. */
+  .meta-form details.marks { grid-column: 1 / -1; color: var(--fg); }
+  details.marks summary { cursor: pointer; color: var(--muted); }
+  details.marks summary:hover { color: var(--fg); }
+  .marks-help { color: var(--muted); margin: 6px 0; font-size: 0.8rem; }
+  .markbar { position: relative; height: 9px; border: 1px solid var(--fg); border-radius: 2px; margin: 8px 0; }
+  .markbar i { position: absolute; top: 1px; bottom: 1px; width: 1px; background: var(--fg); }
+  .toc-list { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; }
+  .meta-form .toc-row { display: flex; flex-direction: row; align-items: baseline; gap: 8px; padding: 2px 0; cursor: pointer;
+    color: var(--fg); }
+  .toc-row input { accent-color: var(--fg); flex: none; }
+  .toc-row input:disabled + .toc-title { color: var(--faint); }
+  .toc-title { flex: 1; overflow-wrap: anywhere; }
+  .toc-pos { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.78rem; }
+  .marks-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+  .marks-actions button { font: inherit; font-size: 0.82rem; padding: 4px 10px; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--fg); background: transparent; color: var(--fg); }
   @media (max-width: 560px) { .meta-form { grid-template-columns: 1fr; } }
   input.rename { font: inherit; font-size: 0.9rem; padding: 2px 6px; border: 1px solid var(--fg); border-radius: 6px;
     background: var(--bg); color: var(--fg); min-width: 0; width: 100%; }
@@ -166,8 +183,9 @@
     <li>Drag items onto a folder or a folder name in the path to move them; drop files from your computer to upload.</li>
     <li>Moving or renaming a book keeps its reading stats (firmware v1.3.0+). Deleting a book doesn't delete its stats.</li>
     <li>Uploading a file with the same name as one already there replaces it and keeps that book's stats.</li>
-    <li>Edit details changes an EPUB's title and author inside the book and saves it back in place, so its stats,
-      position and settings stay. The reader shows the new details once you open the book.</li>
+    <li>Edit details changes an EPUB's title, author and chapter marks (the marks on the progress bars) inside the
+      book and saves it back in place, so its stats, position and settings stay. The reader shows the changes once you
+      open the book.</li>
   </ul>
 </div>
 
@@ -182,6 +200,7 @@
 <script src="reader.js?v=4"></script>
 <script src="vendor/jszip.min.js"></script>
 <script src="epub-meta.js?v=1"></script>
-<script src="files-ui.js?v=4"></script>
+<script src="chapter-marks.js?v=3"></script>
+<script src="files-ui.js?v=5"></script>
 </body>
 </html>

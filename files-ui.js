@@ -503,16 +503,21 @@
     input.addEventListener("blur", function () { finish(true); });
   }
 
-  // Changes an EPUB's title and author inside the book and writes it back to
-  // the same path, so the reader keeps its stats, position and settings
-  // (replacing a book over USB keeps them). Optionally renames the file to
-  // match, which keeps them too.
+  // Changes an EPUB's title, author and chapter marks inside the book and
+  // writes it back to the same path, so the reader keeps its stats, position
+  // and settings (replacing a book over USB keeps them). Optionally renames
+  // the file to match, which keeps them too.
   async function editDetails(host, path) {
-    var zip, info;
+    var zip, info, marks = null;
     var ok = await run("Reading the book…", async function () {
       var bytes = await fs.read(path, function (f) { say("Reading the book… " + Math.round(f * 100) + "%"); });
       zip = await JSZip.loadAsync(bytes);
       info = await EpubMeta.read(zip);
+      try {
+        marks = await ChapterMarks.editor(zip);
+      } catch (e) {
+        console.error("Chapter marks editor unavailable:", e);
+      }
     });
     if (!ok) return;
     say("");
@@ -552,6 +557,10 @@
     title.addEventListener("input", update);
     author.addEventListener("input", update);
     update();
+    if (marks) {
+      marks.panel.classList.add("meta-marks");
+      form.appendChild(marks.panel);
+    }
     var bar = document.createElement("div");
     bar.className = "meta-bar";
     bar.appendChild(button("Save", "primary", save));
@@ -570,12 +579,14 @@
       var newAuthor = author.value.trim().replace(/\s+/g, " ");
       var target = rename.checked && !rename.disabled ? join(parentOf(path), fileName()) : path;
       if (!newTitle) { say("The title can't be empty.", true); return; }
-      var changed = newTitle !== info.title || newAuthor !== info.author;
+      var marksChanged = !!marks && marks.changed();
+      var changed = newTitle !== info.title || newAuthor !== info.author || marksChanged;
       if (!changed && target === path) { host.hidden = true; return; }
       host.hidden = true;
       var saved = !changed;
       var ok = await run("Saving…", async function () {
         if (changed) {
+          if (marksChanged) marks.apply(zip);
           var blob = await EpubMeta.save(zip, info, newTitle, newAuthor);
           await fs.write(path, blob, function (f) { say("Saving… " + Math.round(f * 100) + "%"); });
           saved = true;
@@ -586,7 +597,7 @@
       var error = message.textContent;
       await refresh();
       if (!ok) say((changed ? "Saved the new details, but couldn't rename the file: " : "") + error, true);
-      else say(changed ? "Saved. The reader shows the new title and author once you open the book." :
+      else say(changed ? "Saved. The reader shows the changes once you open the book." :
         "Renamed to " + baseName(target));
     }
   }
