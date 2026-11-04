@@ -59,6 +59,7 @@
 #include "ReaderUtils.h"
 #include "ReadingSessionStats.h"
 #include "RecentBooksStore.h"
+#include "SavedBookInfo.h"
 #include "SdCardFontSystem.h"
 #include "SilentRestart.h"
 #include "WordRef.h"
@@ -2543,6 +2544,7 @@ void EpubReaderActivity::onEnter() {
   // Books with stable page numbers measure their pace in stable pages; the
   // file marks that for the stats screens even before any is measured.
   if (epub->hasStablePageNumbers() && !stablePace.tracked) stablePace.save(epub->getCachePath());
+  SavedBookInfo::save(epub->getCachePath(), epub->getPath(), epub->getTitle(), epub->getAuthor());
   bookStatsEnabled = BookStatsTracking::isBookEnabled(epub->getCachePath());
   statsTrackingActive = SETTINGS.shouldTrackReadingStats() && bookStatsEnabled;
   paceDirty = false;

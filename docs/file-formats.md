@@ -568,6 +568,17 @@ Binary layout (9 bytes):
 - `[1-4]` stable pages read (`uint32_t` LE)
 - `[5-8]` seconds spent on them (`uint32_t` LE)
 
+## `book_info.txt` (CrossInk extras)
+
+The book a cache folder belongs to, so stats kept after the book is deleted
+can still be listed and restored. Three UTF-8 lines: the book's path, title and
+author (each line at most 250 bytes; newlines in the title or author become
+spaces). The reader writes it when it opens an EPUB or XTC book, and the
+stats commands below write it for books on the card and for restored records.
+Clearing or replacing the book keeps it; moving or renaming the book carries it
+with the cache folder (it names the old path until the book is opened or its
+stats are read again).
+
 ## `section.bin`
 
 ### Version 83
@@ -1215,14 +1226,18 @@ Commands (`CMND` + letter; paths as in the other commands):
   nothing. Replies `OK:global=<0|1>,daily=<0|1>,books=<n>,skipped=<n>` or
   `ERR:import:<reason>`, deletes the file, and on success restarts the reader so
   stats held in memory don't overwrite the restored ones. Books are matched by
-  path; records for books not on the card are counted as `skipped`.
+  path. Before firmware 1.8.2 records for books not on the card were counted as
+  `skipped`; since then they are restored as deleted books and `skipped` is
+  always `0`.
 
 - `Q` (firmware 1.6.0+): every book's stats in one stream, so a host needn't
   list each folder and send `B` per book. The reader walks the card (names
   starting with "." and hidden system folders are skipped; at most 6 folders
   deep and 300 folders) and sends `SCAN:<folders done>` after each folder,
   `PATH:<path>` for each EPUB or XTC book, and that book's `STATS:` record when
-  it has stats, then `END`.
+  it has stats. Firmware 1.8.2+ then sends a `STATS:` record, with no `PATH:`
+  line, for each deleted book whose stats were kept (found through its
+  `book_info.txt`), then `END`.
 
 Library commands (firmware 1.5.0+), used by the File Manager's library view:
 
@@ -1257,4 +1272,7 @@ Records (`type` field):
   `timeOfDay[4]`, `dayOfWeek[7]`, and on export `title`, `author` and `progress`
   (percent or null), which are ignored on import. Firmware 1.7.0+ adds
   `stablePages` and `stableSeconds` (`stable_pace.bin`) for books whose pace
-  is in stable pages; imports without them leave that file alone.
+  is in stable pages; imports without them leave that file alone. Firmware
+  1.8.2+ exports `deleted: true` for a book that is no longer on the card
+  (its `progress` is null) and saves `title` and `author` on import to the
+  book's `book_info.txt`.

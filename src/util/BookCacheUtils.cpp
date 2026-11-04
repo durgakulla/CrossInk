@@ -25,17 +25,20 @@ constexpr PreservedCacheFile EPUB_USER_STATE_FILES[] = {
     {"dictionary_history.txt", "upload_preserve_dictionary_history.txt"},
     {"reading_stats_off", "upload_preserve_reading_stats_off"},
     {"stable_pace.bin", "upload_preserve_stable_pace.bin"},
+    {"book_info.txt", "upload_preserve_book_info.txt"},
 };
 
 constexpr PreservedCacheFile PAGE_PROGRESS_FILES[] = {
     {"progress.bin", "upload_preserve_progress.bin"},
     {"reading_stats_off", "upload_preserve_reading_stats_off"},
+    {"book_info.txt", "upload_preserve_book_info.txt"},
 };
 
 constexpr PreservedCacheFile CACHE_CLEAR_USER_STATE_FILES[] = {
     {"dictionary_history.txt", "clear_preserve_dictionary_history.txt"},
     {"reading_stats_off", "clear_preserve_reading_stats_off"},
     {"stable_pace.bin", "clear_preserve_stable_pace.bin"},
+    {"book_info.txt", "clear_preserve_book_info.txt"},
 };
 
 struct ResolvedPreservedCacheFile {

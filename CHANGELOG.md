@@ -22,6 +22,7 @@
 
 ### Fixed
 
+- Deleted books keep showing on the CrossInk extras Reading Stats page, marked "No longer on the reader", and stay in its CSV export and backups. Their stats were already kept on the card when a book was deleted, but the page only listed books still there. Restoring a backup now also restores stats for books that aren't on the reader instead of skipping them. Books deleted before this version show once they're back on the card and opened, or after the Reading Stats page has read them once.
 - A long title at the side of a status bar no longer crowds out the title in the middle. The middle item keeps up to half the bar, and the side title is shortened with "…" instead.
 - Renaming or moving a book over USB (CrossInk's serial file transfer, used by Inky and the CrossInk extras File Manager) now keeps its reading stats, position, settings and Recents entry, like renaming it in the web portal. Previously its saved reading data stayed behind under the old path.
 - Chapter marks on the Reading Heatmap progress bar now appear for books whose chapters share a file (common in Project Gutenberg EPUBs) or sit under a single title entry in the table of contents. Each book's marks are worked out once and saved in its cache.

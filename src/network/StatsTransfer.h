@@ -23,7 +23,9 @@ bool writeBookStats(const char* path, Print& out);
 // or for which skipName returns true are skipped; at most 6 folders deep and
 // 300 folders, like the site's own walk) and writes "SCAN:<folders done>"
 // after each folder, "PATH:<path>" for each EPUB/XTC book, and its
-// "STATS:{...}" record when it has stats. The caller writes "END".
+// "STATS:{...}" record when it has stats. Then a record, marked
+// "deleted": true and with no PATH line, for each deleted book whose stats
+// were kept. The caller writes "END".
 void writeAllBookStats(Print& out, bool (*skipName)(const char* name));
 
 // Writes one "BOOK:{json}" line describing a book file for the File Manager's
@@ -41,8 +43,7 @@ struct ImportResult {
   const char* error = "";  // Set when ok is false
   bool global = false;
   bool daily = false;
-  uint16_t books = 0;
-  uint16_t skipped = 0;  // Books whose file is not on the card
+  uint16_t books = 0;  // Including books not on the card, kept as deleted books
 };
 
 // Applies a JSON Lines stats backup (the records above, without the "STATS:"

@@ -837,8 +837,9 @@ void handleStatsImport() {
     logSerial.printf("ERR:import:%s\n", result.error);
     return;
   }
-  logSerial.printf("OK:global=%u,daily=%u,books=%u,skipped=%u\n", result.global ? 1u : 0u, result.daily ? 1u : 0u,
-                   static_cast<unsigned>(result.books), static_cast<unsigned>(result.skipped));
+  // skipped stays for older pages; books not on the card are now restored too.
+  logSerial.printf("OK:global=%u,daily=%u,books=%u,skipped=0\n", result.global ? 1u : 0u, result.daily ? 1u : 0u,
+                   static_cast<unsigned>(result.books));
   logSerial.flush();
   delay(200);
   silentRestart();

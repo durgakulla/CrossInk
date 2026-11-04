@@ -26,6 +26,7 @@
 #include "ReaderUtils.h"
 #include "ReadingSessionStats.h"
 #include "RecentBooksStore.h"
+#include "SavedBookInfo.h"
 #include "XtcReaderChapterSelectionActivity.h"
 #include "XtcReaderMenuActivity.h"
 #include "activities/boot_sleep/SleepCoverAssets.h"
@@ -125,6 +126,7 @@ void XtcReaderActivity::onEnter() {
   loadProgress();
 
   stats = BookReadingStats::load(xtc->getCachePath());
+  SavedBookInfo::save(xtc->getCachePath(), xtc->getPath(), xtc->getTitle(), xtc->getAuthor());
   globalStats = GlobalReadingStats::load();
   bookStatsEnabled = BookStatsTracking::isBookEnabled(xtc->getCachePath());
   statsTrackingActive = SETTINGS.shouldTrackReadingStats() && bookStatsEnabled;

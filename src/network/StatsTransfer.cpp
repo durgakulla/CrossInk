@@ -25,6 +25,7 @@
 #include "activities/reader/GlobalReadingStats.h"
 #include "activities/reader/StablePace.h"
 #include "activities/reader/ReadingStatsUtils.h"
+#include "activities/reader/SavedBookInfo.h"
 
 #ifndef CROSSINK_FIRMWARE_DEVICE_TYPE
 #define CROSSINK_FIRMWARE_DEVICE_TYPE "unknown"
@@ -129,17 +130,12 @@ bool applyDaily(JsonObjectConst record, const bool commit) {
   return !commit || daily.save();
 }
 
-// Returns false for an invalid record; skipped is set when the book's file
-// isn't on this card.
-bool applyBook(JsonObjectConst record, const bool commit, bool& skipped) {
-  skipped = false;
+// Returns false for an invalid record. Books not on this card keep their
+// stats too, listed as deleted books.
+bool applyBook(JsonObjectConst record, const bool commit) {
   const std::string path = record["path"] | "";
   const std::string cachePath = path.empty() || path.front() != '/' ? std::string{} : statsCachePathFor(path);
   if (cachePath.empty()) return false;
-  if (!Storage.exists(path.c_str())) {
-    skipped = true;
-    return true;
-  }
 
   BookReadingStats stats;
   stats.sessionCount = record["sessions"] | 0u;
@@ -166,6 +162,7 @@ bool applyBook(JsonObjectConst record, const bool commit, bool& skipped) {
   }
   if (!commit) return true;
   Storage.mkdir(cachePath.c_str(), true);
+  SavedBookInfo::save(cachePath, path, record["title"] | "", record["author"] | "");
   return stats.save(cachePath) && (!hasPace || pace.save(cachePath));
 }
 
@@ -300,31 +297,21 @@ bool writeLibraryEntry(const char* path, Print& out) {
   return true;
 }
 
-bool writeBookStats(const char* path, Print& out) {
-  const std::string bookPath = path ? path : "";
-  const std::string cachePath = statsCachePathFor(bookPath);
+namespace {
+
+// Stats worth listing: tracking is on and some reading was recorded.
+bool hasBookStats(const std::string& cachePath, BookReadingStats& stats) {
   if (cachePath.empty() || !Storage.exists(cachePath.c_str()) || !BookStatsTracking::isEnabled(cachePath)) {
     return false;
   }
-  const BookReadingStats stats = BookReadingStats::load(cachePath);
-  if (stats.sessionCount == 0 && stats.totalReadingSeconds == 0 && !stats.isCompleted) return false;
+  stats = BookReadingStats::load(cachePath);
+  return stats.sessionCount > 0 || stats.totalReadingSeconds > 0 || stats.isCompleted;
+}
 
-  const auto& recents = RECENT_BOOKS.getBooks();
-  const auto recent = std::find_if(recents.begin(), recents.end(),
-                                   [&bookPath](const RecentBook& book) { return book.path == bookPath; });
-  const RecentBook book = recent != recents.end() ? *recent : RECENT_BOOKS.getDataFromBook(bookPath);
-
-  JsonDocument record;
-  record["type"] = "book";
-  record["path"] = bookPath;
-  record["title"] = book.title;
-  record["author"] = book.author;
-  const float progress = RecentBookProgress::loadPercent(book);
-  if (RecentBookProgress::hasPercent(progress)) {
-    record["progress"] = progress;
-  } else {
-    record["progress"] = nullptr;
-  }
+// The fields after path, title, author and progress, shared by books on the
+// card and deleted ones.
+void writeBookStatsRecord(JsonDocument& record, const std::string& cachePath, const BookReadingStats& stats,
+                          Print& out) {
   record["sessions"] = stats.sessionCount;
   record["seconds"] = stats.totalReadingSeconds;
   record["pages"] = stats.totalPagesTurned;
@@ -344,6 +331,78 @@ bool writeBookStats(const char* path, Print& out) {
     record["stableSeconds"] = pace.seconds;
   }
   writeRecord(record, out);
+}
+
+// Stats kept for books no longer on the card: cache folders whose saved book
+// info names a missing file. A folder that no longer matches its saved path
+// was moved with a renamed book, which is still on the card.
+void writeDeletedBookStats(Print& out) {
+  HalFile root = Storage.open("/.crosspoint");
+  if (!root || !root.isDirectory()) {
+    if (root) root.close();
+    return;
+  }
+  std::vector<std::string> folders;
+  char name[64];
+  HalFile file = root.openNextFile();
+  while (file) {
+    file.getName(name, sizeof(name));
+    if (file.isDirectory() && (strncmp(name, "epub_", 5) == 0 || strncmp(name, "xtc_", 4) == 0)) {
+      folders.push_back(std::string("/.crosspoint/") + name);
+    }
+    file.close();
+    yield();
+    file = root.openNextFile();
+  }
+  root.close();
+
+  SavedBookInfo info;
+  BookReadingStats stats;
+  for (const std::string& cachePath : folders) {
+    if (!SavedBookInfo::load(cachePath, info) || statsCachePathFor(info.path) != cachePath ||
+        Storage.exists(info.path.c_str()) || !hasBookStats(cachePath, stats)) {
+      continue;
+    }
+    JsonDocument record;
+    record["type"] = "book";
+    record["path"] = info.path;
+    record["title"] = info.title;
+    record["author"] = info.author;
+    record["progress"] = nullptr;
+    record["deleted"] = true;
+    writeBookStatsRecord(record, cachePath, stats, out);
+    yield();
+  }
+}
+
+}  // namespace
+
+bool writeBookStats(const char* path, Print& out) {
+  const std::string bookPath = path ? path : "";
+  const std::string cachePath = statsCachePathFor(bookPath);
+  BookReadingStats stats;
+  if (!hasBookStats(cachePath, stats)) return false;
+
+  const auto& recents = RECENT_BOOKS.getBooks();
+  const auto recent = std::find_if(recents.begin(), recents.end(),
+                                   [&bookPath](const RecentBook& book) { return book.path == bookPath; });
+  const RecentBook book = recent != recents.end() ? *recent : RECENT_BOOKS.getDataFromBook(bookPath);
+  // Books read before book info was saved get it here, so their stats still
+  // list after they're deleted.
+  if (!book.title.empty()) SavedBookInfo::save(cachePath, bookPath, book.title, book.author);
+
+  JsonDocument record;
+  record["type"] = "book";
+  record["path"] = bookPath;
+  record["title"] = book.title;
+  record["author"] = book.author;
+  const float progress = RecentBookProgress::loadPercent(book);
+  if (RecentBookProgress::hasPercent(progress)) {
+    record["progress"] = progress;
+  } else {
+    record["progress"] = nullptr;
+  }
+  writeBookStatsRecord(record, cachePath, stats, out);
   return true;
 }
 
@@ -388,13 +447,8 @@ ImportResult runImport(const char* path, char* line, const bool commit) {
       valid = applyDaily(record, commit);
       result.daily = result.daily || valid;
     } else if (strcmp(type, "book") == 0) {
-      bool skipped = false;
-      valid = applyBook(record, commit, skipped);
-      if (valid && skipped) {
-        result.skipped++;
-      } else if (valid) {
-        result.books++;
-      }
+      valid = applyBook(record, commit);
+      if (valid) result.books++;
     }
     if (!valid) {
       file.close();
@@ -467,6 +521,7 @@ void writeAllBookStats(Print& out, bool (*skipName)(const char* name)) {
       yield();
     }
   }
+  writeDeletedBookStats(out);
 }
 
 ImportResult importStatsFile(const char* path) {
